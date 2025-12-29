@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		D2841FD12EFEC444005261D8 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = D2841FD02EFEC444005261D8 /* Storage */; };
+		D2841FD22EFEC445005261D8 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = D2841FD32EFEC445005261D8 /* Supabase */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		D2841ECD2EFADF39005261D8 /* Earthlord.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Earthlord.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +28,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D2841FD12EFEC444005261D8 /* Storage in Frameworks */,
+				D2841FD22EFEC445005261D8 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +72,8 @@
 			);
 			name = Earthlord;
 			packageProductDependencies = (
+				D2841FD02EFEC444005261D8 /* Storage */,
+				D2841FD32EFEC445005261D8 /* Supabase */,
 			);
 			productName = Earthlord;
 			productReference = D2841ECD2EFADF39005261D8 /* Earthlord.app */;
@@ -94,6 +103,9 @@
 			);
 			mainGroup = D2841EC42EFADF39005261D8;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D2841FCF2EFEC444005261D8 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D2841ECE2EFADF39005261D8 /* Products */;
 			projectDirPath = "";
@@ -351,6 +363,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		D2841FCF2EFEC444005261D8 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D2841FD02EFEC444005261D8 /* Storage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D2841FCF2EFEC444005261D8 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Storage;
+		};
+		D2841FD32EFEC445005261D8 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D2841FCF2EFEC444005261D8 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = D2841EC52EFADF39005261D8 /* Project object */;
 }

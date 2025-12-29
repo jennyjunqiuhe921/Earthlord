@@ -9,11 +9,68 @@ import SwiftUI
 
 struct MoreTabView: View {
     var body: some View {
-        PlaceholderView(
-            icon: "ellipsis",
-            title: "更多",
-            subtitle: "更多功能模块"
-        )
+        NavigationStack {
+            ZStack {
+                // 末日风格背景
+                Color.black.opacity(0.9)
+                    .ignoresSafeArea()
+
+                VStack(spacing: 20) {
+                    // 标题
+                    VStack(spacing: 8) {
+                        Image(systemName: "ellipsis.circle.fill")
+                            .font(.system(size: 60))
+                            .foregroundColor(.orange)
+
+                        Text("更多")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+
+                        Text("更多功能模块")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.top, 40)
+
+                    // 功能列表
+                    VStack(spacing: 15) {
+                        // Supabase 测试
+                        NavigationLink(destination: SupabaseTestView()) {
+                            HStack {
+                                Image(systemName: "network")
+                                    .font(.title2)
+                                    .foregroundColor(.green)
+                                    .frame(width: 40)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Supabase 连接测试")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+
+                                    Text("测试数据库连接状态")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                            }
+                            .padding()
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(10)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 30)
+
+                    Spacer()
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+        }
     }
 }
 
