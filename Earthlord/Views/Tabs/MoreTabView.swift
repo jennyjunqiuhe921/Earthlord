@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct MoreTabView: View {
+    @EnvironmentObject private var authManager: AuthManager
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -62,6 +64,38 @@ struct MoreTabView: View {
                             .background(Color.white.opacity(0.05))
                             .cornerRadius(10)
                         }
+
+                        // 登出按钮
+                        Button(action: {
+                            Task {
+                                await authManager.signOut()
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "rectangle.portrait.and.arrow.right")
+                                    .font(.title2)
+                                    .foregroundColor(.red)
+                                    .frame(width: 40)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("退出登录")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+
+                                    Text("退出当前账号")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                            }
+                            .padding()
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(10)
+                        }
                     }
                     .padding(.horizontal)
                     .padding(.top, 30)
@@ -76,4 +110,5 @@ struct MoreTabView: View {
 
 #Preview {
     MoreTabView()
+        .environmentObject(AuthManager())
 }

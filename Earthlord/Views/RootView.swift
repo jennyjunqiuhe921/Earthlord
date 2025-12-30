@@ -7,22 +7,38 @@
 
 import SwiftUI
 
-/// 根视图：控制启动页与主界面的切换
+/// 根视图：控制启动页、认证页与主界面的切换
 struct RootView: View {
+    /// 认证管理器
+    @StateObject private var authManager = AuthManager()
+
     /// 启动页是否完成
     @State private var splashFinished = false
 
     var body: some View {
         ZStack {
-            if splashFinished {
+            if !splashFinished {
+                // 启动页
+                SplashView(isFinished: $splashFinished)
+                    .transition(.opacity)
+            } else if authManager.isAuthenticated {
+                // 已认证 - 显示主页面
                 MainTabView()
+                    .environmentObject(authManager)
                     .transition(.opacity)
             } else {
-                SplashView(isFinished: $splashFinished)
+                // 未认证 - 显示认证页面
+                AuthView()
+                    .environmentObject(authManager)
                     .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.3), value: splashFinished)
+        .animation(.easeInOut(duration: 0.3), value: authManager.isAuthenticated)
+        .task {
+            // 应用启动时检查用户会话
+            await authManager.checkSession()
+        }
     }
 }
 
