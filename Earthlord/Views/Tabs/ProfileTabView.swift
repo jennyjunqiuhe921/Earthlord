@@ -40,7 +40,7 @@ struct ProfileTabView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     // 顶部标题
-                    Text("幸存者档案")
+                    Text("幸存者档案".localized)
                         .font(.headline)
                         .foregroundColor(ApocalypseTheme.textPrimary)
                         .frame(maxWidth: .infinity)
@@ -84,19 +84,19 @@ struct ProfileTabView: View {
 
                     // 统计数据卡片
                     HStack(spacing: 0) {
-                        StatCard(icon: "flag.fill", title: "领地", value: "0", color: ApocalypseTheme.primary)
+                        StatCard(icon: "flag.fill", title: "领地".localized, value: "0", color: ApocalypseTheme.primary)
 
                         Divider()
                             .frame(height: 60)
                             .background(Color.white.opacity(0.1))
 
-                        StatCard(icon: "mappin.circle.fill", title: "资源点", value: "0", color: ApocalypseTheme.primary)
+                        StatCard(icon: "mappin.circle.fill", title: "资源点".localized, value: "0", color: ApocalypseTheme.primary)
 
                         Divider()
                             .frame(height: 60)
                             .background(Color.white.opacity(0.1))
 
-                        StatCard(icon: "figure.walk", title: "探索距离", value: "0", color: ApocalypseTheme.primary)
+                        StatCard(icon: "figure.walk", title: "探索距离".localized, value: "0", color: ApocalypseTheme.primary)
                     }
                     .frame(height: 100)
                     .background(Color(red: 0.15, green: 0.15, blue: 0.15))
@@ -109,7 +109,7 @@ struct ProfileTabView: View {
                         MenuItemRow(
                             icon: "gearshape.fill",
                             iconColor: .gray,
-                            title: "设置",
+                            title: "设置".localized,
                             action: {
                                 print("🔧 打开设置页面")
                                 showSettings = true
@@ -123,7 +123,7 @@ struct ProfileTabView: View {
                         MenuItemRow(
                             icon: "bell.fill",
                             iconColor: ApocalypseTheme.primary,
-                            title: "通知",
+                            title: "通知".localized,
                             action: {
                                 // TODO: 打开通知页面
                             }
@@ -136,7 +136,7 @@ struct ProfileTabView: View {
                         MenuItemRow(
                             icon: "questionmark.circle.fill",
                             iconColor: .blue,
-                            title: "帮助",
+                            title: "帮助".localized,
                             action: {
                                 // TODO: 打开帮助页面
                             }
@@ -149,7 +149,7 @@ struct ProfileTabView: View {
                         MenuItemRow(
                             icon: "info.circle.fill",
                             iconColor: .green,
-                            title: "关于",
+                            title: "关于".localized,
                             action: {
                                 // TODO: 打开关于页面
                             }
@@ -168,7 +168,7 @@ struct ProfileTabView: View {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
                                 .font(.headline)
 
-                            Text("退出登录")
+                            Text("退出登录".localized)
                                 .font(.headline)
                                 .fontWeight(.semibold)
                         }
@@ -199,7 +199,7 @@ struct ProfileTabView: View {
                             Image(systemName: "trash.fill")
                                 .font(.headline)
 
-                            Text("删除账户")
+                            Text("删除账户".localized)
                                 .font(.headline)
                                 .fontWeight(.semibold)
                         }
@@ -240,18 +240,18 @@ struct ProfileTabView: View {
             }
         }
         .confirmationDialog(
-            "确认退出登录",
+            "确认退出登录".localized,
             isPresented: $showLogoutConfirm,
             titleVisibility: .visible
         ) {
-            Button("退出登录", role: .destructive) {
+            Button("退出登录".localized, role: .destructive) {
                 Task {
                     await authManager.signOut()
                 }
             }
-            Button("取消", role: .cancel) {}
+            Button("取消".localized, role: .cancel) {}
         } message: {
-            Text("退出后需要重新登录才能访问您的账户")
+            Text("退出后需要重新登录才能访问您的账户".localized)
         }
         .sheet(isPresented: $showDeleteAccountDialog) {
             DeleteAccountConfirmView(
@@ -269,10 +269,10 @@ struct ProfileTabView: View {
             )
             .environmentObject(authManager)
         }
-        .alert("账户已删除", isPresented: $showDeleteSuccessAlert) {
-            Button("确定", role: .cancel) {}
+        .alert("账户已删除".localized, isPresented: $showDeleteSuccessAlert) {
+            Button("确定".localized, role: .cancel) {}
         } message: {
-            Text("您的账户已被永久删除")
+            Text("您的账户已被永久删除".localized)
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
@@ -379,15 +379,15 @@ struct DeleteAccountConfirmView: View {
                             .foregroundColor(.red)
                             .padding(.top, 40)
 
-                        Text("永久删除账户")
+                        Text("永久删除账户".localized)
                             .font(.title)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
 
                         VStack(alignment: .leading, spacing: 12) {
-                            WarningText("此操作不可撤销")
-                            WarningText("您的所有数据将被永久删除")
-                            WarningText("删除后无法恢复账户")
+                            WarningText("此操作不可撤销".localized)
+                            WarningText("您的所有数据将被永久删除".localized)
+                            WarningText("删除后无法恢复账户".localized)
                         }
                         .padding(.horizontal, 30)
                     }
@@ -395,7 +395,7 @@ struct DeleteAccountConfirmView: View {
 
                     // 确认输入框
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("请输入 \"删除\" 以确认")
+                        Text("请输入 \"删除\" 以确认".localized)
                             .font(.subheadline)
                             .foregroundColor(.gray)
                             .padding(.horizontal, 30)
@@ -434,7 +434,7 @@ struct DeleteAccountConfirmView: View {
                             isPresented = false
                             onConfirm()
                         }) {
-                            Text("确认删除账户")
+                            Text("确认删除账户".localized)
                                 .font(.headline)
                                 .fontWeight(.bold)
                                 .foregroundColor(.white)
@@ -460,7 +460,7 @@ struct DeleteAccountConfirmView: View {
                             print("🔴 用户取消删除账户")
                             isPresented = false
                         }) {
-                            Text("取消")
+                            Text("取消".localized)
                                 .font(.headline)
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
@@ -473,11 +473,11 @@ struct DeleteAccountConfirmView: View {
                     .padding(.bottom, 40)
                 }
             }
-            .navigationTitle("删除账户")
+            .navigationTitle("删除账户".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("关闭") {
+                    Button("关闭".localized) {
                         isPresented = false
                     }
                     .foregroundColor(.white)
