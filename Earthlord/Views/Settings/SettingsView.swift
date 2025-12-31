@@ -22,7 +22,7 @@ struct SettingsView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         // 语言设置卡片
-                        SettingsSectionCard(title: "语言设置".localized) {
+                        SettingsSectionCard(title: "语言设置") {
                             VStack(spacing: 0) {
                                 ForEach(AppLanguage.allCases) { language in
                                     LanguageOptionRow(
@@ -44,7 +44,7 @@ struct SettingsView: View {
                         }
 
                         // 提示信息
-                        Text("切换语言后将立即生效".localized)
+                        Text("切换语言后将立即生效")
                             .font(.caption)
                             .foregroundColor(.gray)
                             .padding(.horizontal, 30)
@@ -53,11 +53,11 @@ struct SettingsView: View {
                     .padding(.bottom, 40)
                 }
             }
-            .navigationTitle("设置".localized)
+            .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成".localized) {
+                    Button("完成") {
                         print("🌍 关闭设置页面")
                         dismiss()
                     }

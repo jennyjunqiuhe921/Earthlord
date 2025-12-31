@@ -11,7 +11,6 @@ import Supabase
 /// 个人页面 - 显示用户信息和账户设置
 struct ProfileTabView: View {
     @EnvironmentObject private var authManager: AuthManager
-    @StateObject private var languageManager = LanguageManager.shared
 
     /// 是否显示退出确认对话框
     @State private var showLogoutConfirm = false
@@ -28,9 +27,6 @@ struct ProfileTabView: View {
     /// 是否显示设置页面
     @State private var showSettings = false
 
-    /// 强制刷新 UI 的标记
-    @State private var refreshID = UUID()
-
     var body: some View {
         ZStack {
             // 背景
@@ -40,7 +36,7 @@ struct ProfileTabView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     // 顶部标题
-                    Text("幸存者档案".localized)
+                    Text("幸存者档案")
                         .font(.headline)
                         .foregroundColor(ApocalypseTheme.textPrimary)
                         .frame(maxWidth: .infinity)
@@ -168,7 +164,7 @@ struct ProfileTabView: View {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
                                 .font(.headline)
 
-                            Text("退出登录".localized)
+                            Text("退出登录")
                                 .font(.headline)
                                 .fontWeight(.semibold)
                         }
@@ -199,7 +195,7 @@ struct ProfileTabView: View {
                             Image(systemName: "trash.fill")
                                 .font(.headline)
 
-                            Text("删除账户".localized)
+                            Text("删除账户")
                                 .font(.headline)
                                 .fontWeight(.semibold)
                         }
@@ -240,18 +236,18 @@ struct ProfileTabView: View {
             }
         }
         .confirmationDialog(
-            "确认退出登录".localized,
+            "确认退出登录",
             isPresented: $showLogoutConfirm,
             titleVisibility: .visible
         ) {
-            Button("退出登录".localized, role: .destructive) {
+            Button("退出登录", role: .destructive) {
                 Task {
                     await authManager.signOut()
                 }
             }
-            Button("取消".localized, role: .cancel) {}
+            Button("取消", role: .cancel) {}
         } message: {
-            Text("退出后需要重新登录才能访问您的账户".localized)
+            Text("退出后需要重新登录才能访问您的账户")
         }
         .sheet(isPresented: $showDeleteAccountDialog) {
             DeleteAccountConfirmView(
@@ -269,18 +265,13 @@ struct ProfileTabView: View {
             )
             .environmentObject(authManager)
         }
-        .alert("账户已删除".localized, isPresented: $showDeleteSuccessAlert) {
-            Button("确定".localized, role: .cancel) {}
+        .alert("账户已删除", isPresented: $showDeleteSuccessAlert) {
+            Button("确定", role: .cancel) {}
         } message: {
-            Text("您的账户已被永久删除".localized)
+            Text("您的账户已被永久删除")
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
-        }
-        .id(refreshID)
-        .onReceive(NotificationCenter.default.publisher(for: .languageDidChange)) { _ in
-            print("🌍 ProfileTabView 收到语言切换通知，刷新界面")
-            refreshID = UUID()
         }
     }
 
@@ -379,7 +370,7 @@ struct DeleteAccountConfirmView: View {
                             .foregroundColor(.red)
                             .padding(.top, 40)
 
-                        Text("永久删除账户".localized)
+                        Text("永久删除账户")
                             .font(.title)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
@@ -395,7 +386,7 @@ struct DeleteAccountConfirmView: View {
 
                     // 确认输入框
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("请输入 \"删除\" 以确认".localized)
+                        Text("请输入 \"删除\" 以确认")
                             .font(.subheadline)
                             .foregroundColor(.gray)
                             .padding(.horizontal, 30)
@@ -434,7 +425,7 @@ struct DeleteAccountConfirmView: View {
                             isPresented = false
                             onConfirm()
                         }) {
-                            Text("确认删除账户".localized)
+                            Text("确认删除账户")
                                 .font(.headline)
                                 .fontWeight(.bold)
                                 .foregroundColor(.white)
@@ -460,7 +451,7 @@ struct DeleteAccountConfirmView: View {
                             print("🔴 用户取消删除账户")
                             isPresented = false
                         }) {
-                            Text("取消".localized)
+                            Text("取消")
                                 .font(.headline)
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
@@ -473,11 +464,11 @@ struct DeleteAccountConfirmView: View {
                     .padding(.bottom, 40)
                 }
             }
-            .navigationTitle("删除账户".localized)
+            .navigationTitle("删除账户")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("关闭".localized) {
+                    Button("关闭") {
                         isPresented = false
                     }
                     .foregroundColor(.white)

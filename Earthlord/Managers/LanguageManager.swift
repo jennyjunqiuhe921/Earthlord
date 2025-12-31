@@ -28,8 +28,8 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         }
     }
 
-    /// 语言代码
-    var languageCode: String? {
+    /// Locale 标识符
+    var localeIdentifier: String? {
         switch self {
         case .system:
             return nil  // nil 表示使用系统语言
@@ -41,7 +41,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     }
 }
 
-/// 语言管理器 - 管理 App 内的语言切换
+/// 语言管理器 - 使用 Locale 方式管理 App 内的语言切换
 @MainActor
 class LanguageManager: ObservableObject {
 
@@ -56,12 +56,12 @@ class LanguageManager: ObservableObject {
         didSet {
             print("🌍 语言切换: \(oldValue.displayName) → \(currentLanguage.displayName)")
             saveLanguagePreference()
-            updateBundle()
+            updateLocale()
         }
     }
 
-    /// 当前语言的 Bundle（用于获取本地化字符串）
-    @Published private(set) var bundle: Bundle = Bundle.main
+    /// 当前的 Locale（SwiftUI 会使用这个来查找 Localizable.xcstrings 中的翻译）
+    @Published var currentLocale: Locale = .current
 
     // MARK: - Private Properties
 
@@ -81,8 +81,8 @@ class LanguageManager: ObservableObject {
             print("🌍 使用默认语言设置: 跟随系统")
         }
 
-        // 初始化 Bundle
-        updateBundle()
+        // 初始化 Locale
+        updateLocale()
     }
 
     // MARK: - Public Methods
@@ -94,15 +94,6 @@ class LanguageManager: ObservableObject {
         currentLanguage = language
     }
 
-    /// 获取本地化字符串
-    /// - Parameters:
-    ///   - key: 字符串 key
-    ///   - comment: 注释（可选）
-    /// - Returns: 本地化后的字符串
-    func localizedString(_ key: String, comment: String = "") -> String {
-        return bundle.localizedString(forKey: key, value: nil, table: nil)
-    }
-
     // MARK: - Private Methods
 
     /// 保存语言偏好到 UserDefaults
@@ -111,66 +102,22 @@ class LanguageManager: ObservableObject {
         print("✅ 语言设置已保存: \(currentLanguage.rawValue)")
     }
 
-    /// 更新 Bundle（用于获取对应语言的本地化资源）
-    private func updateBundle() {
-        let languageCode: String
-
-        if let code = currentLanguage.languageCode {
+    /// 更新 Locale（SwiftUI 会使用新的 Locale 查找 Localizable.xcstrings）
+    private func updateLocale() {
+        if let identifier = currentLanguage.localeIdentifier {
             // 使用用户选择的语言
-            languageCode = code
-            print("🌍 使用指定语言: \(code)")
+            currentLocale = Locale(identifier: identifier)
+            print("🌍 切换到指定 Locale: \(identifier)")
         } else {
             // 跟随系统语言
-            languageCode = Locale.preferredLanguages.first?.components(separatedBy: "-").first ?? "zh-Hans"
-            print("🌍 跟随系统语言: \(languageCode)")
+            currentLocale = Locale.current
+            print("🌍 跟随系统 Locale: \(Locale.current.identifier)")
         }
-
-        // 查找对应语言的 Bundle
-        if let path = Bundle.main.path(forResource: languageCode, ofType: "lproj"),
-           let bundle = Bundle(path: path) {
-            self.bundle = bundle
-            print("✅ 成功加载语言包: \(languageCode)")
-        } else {
-            // 如果找不到对应语言包，使用主 Bundle
-            self.bundle = Bundle.main
-            print("⚠️ 未找到语言包 \(languageCode)，使用默认语言包")
-        }
-
-        // 发送通知，让 UI 刷新
-        NotificationCenter.default.post(name: .languageDidChange, object: nil)
-        print("📢 已发送语言切换通知")
+        print("📢 Locale 已更新，SwiftUI 会自动从 Localizable.xcstrings 查找翻译")
     }
 
-    /// 获取当前有效的语言代码
+    /// 获取当前有效的语言代码（用于显示）
     var effectiveLanguageCode: String {
-        if let code = currentLanguage.languageCode {
-            return code
-        } else {
-            return Locale.preferredLanguages.first?.components(separatedBy: "-").first ?? "zh-Hans"
-        }
-    }
-}
-
-// MARK: - Notification Extension
-
-extension Notification.Name {
-    /// 语言切换通知
-    static let languageDidChange = Notification.Name("LanguageDidChangeNotification")
-}
-
-// MARK: - String Extension (本地化便捷方法)
-
-extension String {
-    /// 获取本地化字符串
-    var localized: String {
-        return LanguageManager.shared.localizedString(self)
-    }
-
-    /// 获取本地化字符串（带参数）
-    /// - Parameter arguments: 格式化参数
-    /// - Returns: 本地化后的字符串
-    func localized(with arguments: CVarArg...) -> String {
-        let format = LanguageManager.shared.localizedString(self)
-        return String(format: format, arguments: arguments)
+        return currentLocale.language.languageCode?.identifier ?? "zh-Hans"
     }
 }

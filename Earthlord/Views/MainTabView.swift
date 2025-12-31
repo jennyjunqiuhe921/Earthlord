@@ -10,8 +10,6 @@ import SwiftUI
 struct MainTabView: View {
     @State private var selectedTab = 0
     @EnvironmentObject private var authManager: AuthManager
-    @StateObject private var languageManager = LanguageManager.shared
-    @State private var refreshID = UUID()
 
     init() {
         // 自定义 TabBar 外观
@@ -43,37 +41,32 @@ struct MainTabView: View {
             MapTabView()
                 .tabItem {
                     Image(systemName: "map.fill")
-                    Text("地图".localized)
+                    Text("地图")
                 }
                 .tag(0)
 
             TerritoryTabView()
                 .tabItem {
                     Image(systemName: "flag.fill")
-                    Text("领地".localized)
+                    Text("领地")
                 }
                 .tag(1)
 
             ProfileTabView()
                 .tabItem {
                     Image(systemName: "person.fill")
-                    Text("个人".localized)
+                    Text("个人")
                 }
                 .tag(2)
 
             MoreTabView()
                 .tabItem {
                     Image(systemName: "ellipsis")
-                    Text("更多".localized)
+                    Text("更多")
                 }
                 .tag(3)
         }
         .accentColor(ApocalypseTheme.primary)
-        .id(refreshID)
-        .onReceive(NotificationCenter.default.publisher(for: .languageDidChange)) { _ in
-            print("🌍 MainTabView 收到语言切换通知，刷新界面")
-            refreshID = UUID()
-        }
     }
 }
 
