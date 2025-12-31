@@ -9,6 +9,8 @@ import SwiftUI
 
 struct MoreTabView: View {
     @EnvironmentObject private var authManager: AuthManager
+    @StateObject private var languageManager = LanguageManager.shared
+    @State private var refreshID = UUID()
 
     var body: some View {
         NavigationStack {
@@ -24,12 +26,12 @@ struct MoreTabView: View {
                             .font(.system(size: 60))
                             .foregroundColor(.orange)
 
-                        Text("更多")
+                        Text("更多".localized)
                             .font(.largeTitle)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
 
-                        Text("更多功能模块")
+                        Text("更多功能模块".localized)
                             .font(.subheadline)
                             .foregroundColor(.gray)
                     }
@@ -46,11 +48,11 @@ struct MoreTabView: View {
                                     .frame(width: 40)
 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("Supabase 连接测试")
+                                    Text("Supabase 连接测试".localized)
                                         .font(.headline)
                                         .foregroundColor(.white)
 
-                                    Text("测试数据库连接状态")
+                                    Text("测试数据库连接状态".localized)
                                         .font(.caption)
                                         .foregroundColor(.gray)
                                 }
@@ -78,11 +80,11 @@ struct MoreTabView: View {
                                     .frame(width: 40)
 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("退出登录")
+                                    Text("退出登录".localized)
                                         .font(.headline)
                                         .foregroundColor(.white)
 
-                                    Text("退出当前账号")
+                                    Text("退出当前账号".localized)
                                         .font(.caption)
                                         .foregroundColor(.gray)
                                 }
@@ -104,6 +106,11 @@ struct MoreTabView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .id(refreshID)
+            .onReceive(NotificationCenter.default.publisher(for: .languageDidChange)) { _ in
+                print("🌍 MoreTabView 收到语言切换通知，刷新界面")
+                refreshID = UUID()
+            }
         }
     }
 }
