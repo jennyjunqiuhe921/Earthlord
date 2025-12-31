@@ -84,19 +84,19 @@ struct ProfileTabView: View {
 
                     // 统计数据卡片
                     HStack(spacing: 0) {
-                        StatCard(icon: "flag.fill", title: "领地", value: "0", color: ApocalypseTheme.primary)
+                        StatCard(icon: "flag.fill", titleKey: "领地", value: "0", color: ApocalypseTheme.primary)
 
                         Divider()
                             .frame(height: 60)
                             .background(Color.white.opacity(0.1))
 
-                        StatCard(icon: "mappin.circle.fill", title: "资源点", value: "0", color: ApocalypseTheme.primary)
+                        StatCard(icon: "mappin.circle.fill", titleKey: "资源点", value: "0", color: ApocalypseTheme.primary)
 
                         Divider()
                             .frame(height: 60)
                             .background(Color.white.opacity(0.1))
 
-                        StatCard(icon: "figure.walk", title: "探索距离", value: "0", color: ApocalypseTheme.primary)
+                        StatCard(icon: "figure.walk", titleKey: "探索距离", value: "0", color: ApocalypseTheme.primary)
                     }
                     .frame(height: 100)
                     .background(Color(red: 0.15, green: 0.15, blue: 0.15))
@@ -109,7 +109,7 @@ struct ProfileTabView: View {
                         MenuItemRow(
                             icon: "gearshape.fill",
                             iconColor: .gray,
-                            title: "设置",
+                            titleKey: "设置",
                             action: {
                                 print("🔧 打开设置页面")
                                 showSettings = true
@@ -123,7 +123,7 @@ struct ProfileTabView: View {
                         MenuItemRow(
                             icon: "bell.fill",
                             iconColor: ApocalypseTheme.primary,
-                            title: "通知",
+                            titleKey: "通知",
                             action: {
                                 // TODO: 打开通知页面
                             }
@@ -136,7 +136,7 @@ struct ProfileTabView: View {
                         MenuItemRow(
                             icon: "questionmark.circle.fill",
                             iconColor: .blue,
-                            title: "帮助",
+                            titleKey: "帮助",
                             action: {
                                 // TODO: 打开帮助页面
                             }
@@ -149,7 +149,7 @@ struct ProfileTabView: View {
                         MenuItemRow(
                             icon: "info.circle.fill",
                             iconColor: .green,
-                            title: "关于",
+                            titleKey: "关于",
                             action: {
                                 // TODO: 打开关于页面
                             }
@@ -299,7 +299,7 @@ struct ProfileTabView: View {
 
 struct StatCard: View {
     let icon: String
-    let title: LocalizedStringKey
+    let titleKey: String
     let value: String
     let color: Color
 
@@ -314,7 +314,7 @@ struct StatCard: View {
                 .fontWeight(.bold)
                 .foregroundColor(.white)
 
-            Text(title)
+            Text(LocalizedStringKey(titleKey))
                 .font(.caption)
                 .foregroundColor(.gray)
         }
@@ -327,7 +327,7 @@ struct StatCard: View {
 struct MenuItemRow: View {
     let icon: String
     let iconColor: Color
-    let title: LocalizedStringKey
+    let titleKey: String
     let action: () -> Void
 
     var body: some View {
@@ -338,7 +338,7 @@ struct MenuItemRow: View {
                     .foregroundColor(iconColor)
                     .frame(width: 30)
 
-                Text(title)
+                Text(LocalizedStringKey(titleKey))
                     .font(.body)
                     .foregroundColor(.white)
 
