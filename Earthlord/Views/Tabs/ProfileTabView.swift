@@ -11,6 +11,7 @@ import Supabase
 /// 个人页面 - 显示用户信息和账户设置
 struct ProfileTabView: View {
     @EnvironmentObject private var authManager: AuthManager
+    @StateObject private var languageManager = LanguageManager.shared
 
     /// 是否显示退出确认对话框
     @State private var showLogoutConfirm = false
@@ -23,6 +24,12 @@ struct ProfileTabView: View {
 
     /// 是否显示删除成功提示
     @State private var showDeleteSuccessAlert = false
+
+    /// 是否显示设置页面
+    @State private var showSettings = false
+
+    /// 强制刷新 UI 的标记
+    @State private var refreshID = UUID()
 
     var body: some View {
         ZStack {
@@ -104,7 +111,8 @@ struct ProfileTabView: View {
                             iconColor: .gray,
                             title: "设置",
                             action: {
-                                // TODO: 打开设置页面
+                                print("🔧 打开设置页面")
+                                showSettings = true
                             }
                         )
 
@@ -265,6 +273,14 @@ struct ProfileTabView: View {
             Button("确定", role: .cancel) {}
         } message: {
             Text("您的账户已被永久删除")
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
+        .id(refreshID)
+        .onReceive(NotificationCenter.default.publisher(for: .languageDidChange)) { _ in
+            print("🌍 ProfileTabView 收到语言切换通知，刷新界面")
+            refreshID = UUID()
         }
     }
 
