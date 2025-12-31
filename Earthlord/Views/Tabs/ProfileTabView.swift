@@ -84,19 +84,19 @@ struct ProfileTabView: View {
 
                     // 统计数据卡片
                     HStack(spacing: 0) {
-                        StatCard(icon: "flag.fill", title: "领地".localized, value: "0", color: ApocalypseTheme.primary)
+                        StatCard(icon: "flag.fill", title: "领地", value: "0", color: ApocalypseTheme.primary)
 
                         Divider()
                             .frame(height: 60)
                             .background(Color.white.opacity(0.1))
 
-                        StatCard(icon: "mappin.circle.fill", title: "资源点".localized, value: "0", color: ApocalypseTheme.primary)
+                        StatCard(icon: "mappin.circle.fill", title: "资源点", value: "0", color: ApocalypseTheme.primary)
 
                         Divider()
                             .frame(height: 60)
                             .background(Color.white.opacity(0.1))
 
-                        StatCard(icon: "figure.walk", title: "探索距离".localized, value: "0", color: ApocalypseTheme.primary)
+                        StatCard(icon: "figure.walk", title: "探索距离", value: "0", color: ApocalypseTheme.primary)
                     }
                     .frame(height: 100)
                     .background(Color(red: 0.15, green: 0.15, blue: 0.15))
@@ -109,7 +109,7 @@ struct ProfileTabView: View {
                         MenuItemRow(
                             icon: "gearshape.fill",
                             iconColor: .gray,
-                            title: "设置".localized,
+                            title: "设置",
                             action: {
                                 print("🔧 打开设置页面")
                                 showSettings = true
@@ -123,7 +123,7 @@ struct ProfileTabView: View {
                         MenuItemRow(
                             icon: "bell.fill",
                             iconColor: ApocalypseTheme.primary,
-                            title: "通知".localized,
+                            title: "通知",
                             action: {
                                 // TODO: 打开通知页面
                             }
@@ -136,7 +136,7 @@ struct ProfileTabView: View {
                         MenuItemRow(
                             icon: "questionmark.circle.fill",
                             iconColor: .blue,
-                            title: "帮助".localized,
+                            title: "帮助",
                             action: {
                                 // TODO: 打开帮助页面
                             }
@@ -149,7 +149,7 @@ struct ProfileTabView: View {
                         MenuItemRow(
                             icon: "info.circle.fill",
                             iconColor: .green,
-                            title: "关于".localized,
+                            title: "关于",
                             action: {
                                 // TODO: 打开关于页面
                             }
@@ -299,7 +299,7 @@ struct ProfileTabView: View {
 
 struct StatCard: View {
     let icon: String
-    let title: String
+    let title: LocalizedStringKey
     let value: String
     let color: Color
 
@@ -327,7 +327,7 @@ struct StatCard: View {
 struct MenuItemRow: View {
     let icon: String
     let iconColor: Color
-    let title: String
+    let title: LocalizedStringKey
     let action: () -> Void
 
     var body: some View {
@@ -385,9 +385,9 @@ struct DeleteAccountConfirmView: View {
                             .foregroundColor(.white)
 
                         VStack(alignment: .leading, spacing: 12) {
-                            WarningText("此操作不可撤销".localized)
-                            WarningText("您的所有数据将被永久删除".localized)
-                            WarningText("删除后无法恢复账户".localized)
+                            WarningText("此操作不可撤销")
+                            WarningText("您的所有数据将被永久删除")
+                            WarningText("删除后无法恢复账户")
                         }
                         .padding(.horizontal, 30)
                     }
@@ -489,9 +489,9 @@ struct DeleteAccountConfirmView: View {
 
 // 警告文本组件
 struct WarningText: View {
-    let text: String
+    let text: LocalizedStringKey
 
-    init(_ text: String) {
+    init(_ text: LocalizedStringKey) {
         self.text = text
     }
 
