@@ -196,7 +196,7 @@ struct SupabaseTestView: View {
 
         Task {
             var successCount = 0
-            var totalTables = 3
+            let totalTables = 3
 
             // 检查 profiles 表
             debugLog += "1️⃣ 检查 profiles 表...\n"

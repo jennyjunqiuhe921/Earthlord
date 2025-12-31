@@ -816,7 +816,7 @@ struct OTPInputView: View {
                 .keyboardType(.numberPad)
                 .focused($isFocused)
                 .opacity(0)
-                .onChange(of: otp) { newValue in
+                .onChange(of: otp) { _, newValue in
                     if newValue.count > 6 {
                         otp = String(newValue.prefix(6))
                     }

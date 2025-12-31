@@ -421,6 +421,93 @@ class AuthManager: ObservableObject {
         isLoading = false
     }
 
+    // MARK: - 删除账户
+
+    /// 删除当前用户账户
+    /// - Returns: 删除成功返回 true，失败返回 false
+    @discardableResult
+    func deleteAccount() async -> Bool {
+        print("🔴 开始删除账户流程")
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            // 第一步：获取当前会话和 access token
+            print("🔴 步骤 1: 获取用户会话")
+            let session = try await supabase.auth.session
+            let accessToken = session.accessToken
+            let userId = session.user.id
+            print("✅ 获取会话成功，用户 ID: \(userId)")
+
+            // 第二步：调用边缘函数删除账户
+            print("🔴 步骤 2: 调用边缘函数删除账户")
+            let functionURL = URL(string: "https://acnriuoexalqvckiuvgr.supabase.co/functions/v1/delete-account")!
+            var request = URLRequest(url: functionURL)
+            request.httpMethod = "POST"
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            // 第三步：检查响应状态
+            print("🔴 步骤 3: 检查删除结果")
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("❌ 错误: 无效的响应")
+                errorMessage = "删除账户失败：无效的服务器响应"
+                isLoading = false
+                return false
+            }
+
+            print("📊 HTTP 状态码: \(httpResponse.statusCode)")
+
+            // 解析响应
+            let deleteResponse = try JSONDecoder().decode(DeleteAccountResponse.self, from: data)
+
+            if httpResponse.statusCode == 200 && deleteResponse.success {
+                print("✅ 账户删除成功")
+                print("✅ \(deleteResponse.message)")
+
+                // 第四步：清空本地状态
+                print("🔴 步骤 4: 清空本地认证状态")
+                currentUser = nil
+                isAuthenticated = false
+                needsPasswordSetup = false
+                otpSent = false
+                otpVerified = false
+                errorMessage = nil
+
+                isLoading = false
+                print("✅ 删除账户流程完成")
+                return true
+
+            } else {
+                print("❌ 删除账户失败: \(deleteResponse.message)")
+                errorMessage = deleteResponse.message
+                isLoading = false
+                return false
+            }
+
+        } catch let error as DecodingError {
+            print("❌ JSON 解析错误: \(error)")
+            errorMessage = "删除账户失败：服务器响应格式错误"
+            isLoading = false
+            return false
+
+        } catch {
+            print("❌ 删除账户失败: \(error.localizedDescription)")
+            errorMessage = "删除账户失败: \(error.localizedDescription)"
+            isLoading = false
+            return false
+        }
+    }
+
+    /// 边缘函数响应结构
+    private struct DeleteAccountResponse: Codable {
+        let success: Bool
+        let message: String
+        let userId: String?
+    }
+
     // MARK: - 会话管理
 
     /// 检查当前会话状态
