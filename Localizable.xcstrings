@@ -4,6 +4,9 @@
     "" : {
 
     },
+    "《地球新主》需要获取您的位置\n来显示您在末日世界中的坐标\n帮助您探索和圈定领地" : {
+
+    },
     "EARTH LORD" : {
 
     },
@@ -60,12 +63,45 @@
         }
       }
     },
+    "允许定位" : {
+
+    },
+    "关于" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About"
+          }
+        }
+      }
+    },
     "关闭" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Close"
+          }
+        }
+      }
+    },
+    "切换语言后将立即生效" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Language changes will take effect immediately"
+          }
+        }
+      }
+    },
+    "删除后无法恢复账户" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot recover account after deletion"
           }
         }
       }
@@ -79,6 +115,9 @@
           }
         }
       }
+    },
+    "前往设置" : {
+
     },
     "发送验证码" : {
       "localizations" : {
@@ -120,12 +159,45 @@
         }
       }
     },
+    "坐标: %@, %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "坐标: %1$@, %2$@"
+          }
+        }
+      }
+    },
+    "完成" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        }
+      }
+    },
     "完成注册" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Complete Registration"
+          }
+        }
+      }
+    },
+    "定位中..." : {
+
+    },
+    "帮助" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Help"
           }
         }
       }
@@ -146,6 +218,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Forgot Password?"
+          }
+        }
+      }
+    },
+    "您的所有数据将被永久删除" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All your data will be permanently deleted"
           }
         }
       }
@@ -181,11 +263,22 @@
       }
     },
     "探索和圈占领地" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Explore and Claim Territory"
+          }
+        }
+      }
+    },
+    "探索距离" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Explored"
           }
         }
       }
@@ -206,6 +299,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "More Features"
+          }
+        }
+      }
+    },
+    "此操作不可撤销" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This action cannot be undone"
           }
         }
       }
@@ -290,12 +393,32 @@
         }
       }
     },
+    "简体中文" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simplified Chinese"
+          }
+        }
+      }
+    },
     "管理你的领地" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Manage Your Territory"
+          }
+        }
+      }
+    },
+    "设置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
           }
         }
       }
@@ -316,6 +439,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Set New Password"
+          }
+        }
+      }
+    },
+    "语言设置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Language Settings"
           }
         }
       }
@@ -346,6 +479,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Account Deleted"
+          }
+        }
+      }
+    },
+    "资源点" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resources"
+          }
+        }
+      }
+    },
+    "跟随系统 / Follow System" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Follow System"
           }
         }
       }
@@ -420,6 +573,16 @@
         }
       }
     },
+    "通知" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications"
+          }
+        }
+      }
+    },
     "重新发送 (%llds)" : {
       "localizations" : {
         "en" : {
@@ -449,6 +612,9 @@
           }
         }
       }
+    },
+    "需要定位权限" : {
+
     },
     "领地" : {
       "localizations" : {
@@ -496,146 +662,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Verification code sent to %@"
-          }
-        }
-      }
-    },
-    "设置" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Settings"
-          }
-        }
-      }
-    },
-    "语言设置" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Language Settings"
-          }
-        }
-      }
-    },
-    "切换语言后将立即生效" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Language changes will take effect immediately"
-          }
-        }
-      }
-    },
-    "完成" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Done"
-          }
-        }
-      }
-    },
-    "跟随系统 / Follow System" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Follow System"
-          }
-        }
-      }
-    },
-    "简体中文" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Simplified Chinese"
-          }
-        }
-      }
-    },
-    "资源点" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Resources"
-          }
-        }
-      }
-    },
-    "探索距离" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Explored"
-          }
-        }
-      }
-    },
-    "通知" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Notifications"
-          }
-        }
-      }
-    },
-    "帮助" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Help"
-          }
-        }
-      }
-    },
-    "关于" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "About"
-          }
-        }
-      }
-    },
-    "此操作不可撤销" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This action cannot be undone"
-          }
-        }
-      }
-    },
-    "您的所有数据将被永久删除" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All your data will be permanently deleted"
-          }
-        }
-      }
-    },
-    "删除后无法恢复账户" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cannot recover account after deletion"
           }
         }
       }
