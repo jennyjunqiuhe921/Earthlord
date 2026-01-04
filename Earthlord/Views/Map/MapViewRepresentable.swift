@@ -9,7 +9,7 @@ import SwiftUI
 import MapKit
 
 /// 地图视图的 SwiftUI 包装器
-/// 负责显示地图、用户位置、应用末世滤镜效果
+/// 负责显示地图、用户位置、应用末世滤镜效果、绘制追踪轨迹
 struct MapViewRepresentable: UIViewRepresentable {
 
     // MARK: - Bindings
@@ -19,6 +19,17 @@ struct MapViewRepresentable: UIViewRepresentable {
 
     /// 是否已完成首次定位（防止重复居中）
     @Binding var hasLocatedUser: Bool
+
+    /// 追踪路径坐标数组（双向绑定）
+    @Binding var trackingPath: [CLLocationCoordinate2D]
+
+    // MARK: - Properties
+
+    /// 路径更新版本号（触发重绘）
+    var pathUpdateVersion: Int
+
+    /// 是否正在追踪
+    var isTracking: Bool
 
     // MARK: - UIViewRepresentable Methods
 
@@ -47,10 +58,10 @@ struct MapViewRepresentable: UIViewRepresentable {
         return mapView
     }
 
-    /// 更新地图视图（空实现即可）
+    /// 更新地图视图
     func updateUIView(_ uiView: MKMapView, context: Context) {
-        // 这里可以根据需要更新地图状态
-        // 目前无需实现，因为位置更新由 Coordinator 处理
+        // 更新追踪路径
+        context.coordinator.updateTrackingPath(on: uiView, path: trackingPath)
     }
 
     /// 创建协调器（负责处理地图回调）
@@ -141,6 +152,40 @@ struct MapViewRepresentable: UIViewRepresentable {
         /// 地图加载完成时调用
         func mapViewDidFinishLoadingMap(_ mapView: MKMapView) {
             print("✅ 地图加载完成")
+        }
+
+        // MARK: - Path Tracking Methods
+
+        /// 更新追踪路径
+        func updateTrackingPath(on mapView: MKMapView, path: [CLLocationCoordinate2D]) {
+            // 移除旧的轨迹覆盖层
+            let oldOverlays = mapView.overlays.filter { $0 is MKPolyline }
+            mapView.removeOverlays(oldOverlays)
+
+            // 如果路径为空或只有一个点，不绘制
+            guard path.count >= 2 else { return }
+
+            // ⭐ 坐标转换：WGS-84 → GCJ-02（解决中国地图偏移问题）
+            let convertedPath = CoordinateConverter.wgs84ToGcj02(path)
+
+            // 创建并添加新的轨迹线
+            let polyline = MKPolyline(coordinates: convertedPath, count: convertedPath.count)
+            mapView.addOverlay(polyline)
+
+            print("🎨 更新轨迹：\(path.count) 个点")
+        }
+
+        /// ⭐⭐⭐ 关键方法：提供覆盖层渲染器（必须实现，否则轨迹不显示！）
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            if let polyline = overlay as? MKPolyline {
+                let renderer = MKPolylineRenderer(polyline: polyline)
+                renderer.strokeColor = UIColor.cyan          // 青色轨迹（末世风格）
+                renderer.lineWidth = 5                       // 线宽 5pt
+                renderer.lineCap = .round                    // 圆头线条
+                renderer.lineJoin = .round                   // 圆角转折
+                return renderer
+            }
+            return MKOverlayRenderer(overlay: overlay)
         }
     }
 }
