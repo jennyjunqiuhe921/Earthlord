@@ -15,6 +15,9 @@ struct RootView: View {
     /// 语言管理器
     @StateObject private var languageManager = LanguageManager.shared
 
+    /// 位置管理器（全局共享）
+    @StateObject private var locationManager = LocationManager()
+
     /// 启动页是否完成
     @State private var splashFinished = false
 
@@ -28,6 +31,7 @@ struct RootView: View {
                 // 已认证 - 显示主页面
                 MainTabView()
                     .environmentObject(authManager)
+                    .environmentObject(locationManager)
                     .transition(.opacity)
             } else {
                 // 未认证 - 显示认证页面

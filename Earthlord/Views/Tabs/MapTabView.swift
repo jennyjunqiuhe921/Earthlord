@@ -12,8 +12,8 @@ struct MapTabView: View {
 
     // MARK: - State Management
 
-    /// GPS 定位管理器
-    @StateObject private var locationManager = LocationManager()
+    /// GPS 定位管理器（从上层注入）
+    @EnvironmentObject var locationManager: LocationManager
 
     /// 是否已完成首次定位
     @State private var hasLocatedUser = false
@@ -34,7 +34,8 @@ struct MapTabView: View {
                     hasLocatedUser: $hasLocatedUser,
                     trackingPath: $locationManager.pathCoordinates,
                     pathUpdateVersion: locationManager.pathUpdateVersion,
-                    isTracking: locationManager.isTracking
+                    isTracking: locationManager.isTracking,
+                    isPathClosed: locationManager.isPathClosed
                 )
                 .ignoresSafeArea()
             } else {
@@ -45,6 +46,15 @@ struct MapTabView: View {
             // 顶部工具栏
             VStack {
                 topToolbar
+
+                // 速度警告横幅
+                if let warning = locationManager.speedWarning {
+                    speedWarningBanner(message: warning)
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 Spacer()
             }
 
@@ -278,8 +288,31 @@ struct MapTabView: View {
         )
         .padding(.horizontal)
     }
+
+    /// 速度警告横幅
+    private func speedWarningBanner(message: String) -> some View {
+        HStack {
+            Image(systemName: "gauge.high")
+                .foregroundColor(.white)
+
+            Text(message)
+                .font(.subheadline)
+                .foregroundColor(.white)
+                .lineLimit(2)
+
+            Spacer()
+        }
+        .padding()
+        .background(
+            // 根据是否还在追踪使用不同颜色
+            (locationManager.isTracking ? Color.orange : Color.red)
+                .cornerRadius(12)
+                .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
+        )
+    }
 }
 
 #Preview {
     MapTabView()
+        .environmentObject(LocationManager())
 }

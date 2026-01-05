@@ -37,20 +37,20 @@ struct MoreTabView: View {
 
                     // 功能列表
                     VStack(spacing: 15) {
-                        // Supabase 测试
-                        NavigationLink(destination: SupabaseTestView()) {
+                        // 开发测试
+                        NavigationLink(destination: TestMenuView()) {
                             HStack {
-                                Image(systemName: "network")
+                                Image(systemName: "hammer.circle.fill")
                                     .font(.title2)
-                                    .foregroundColor(.green)
+                                    .foregroundColor(.orange)
                                     .frame(width: 40)
 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("Supabase 连接测试")
+                                    Text("开发测试")
                                         .font(.headline)
                                         .foregroundColor(.white)
 
-                                    Text("测试数据库连接状态")
+                                    Text("功能测试和调试工具")
                                         .font(.caption)
                                         .foregroundColor(.gray)
                                 }
