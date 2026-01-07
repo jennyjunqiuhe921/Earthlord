@@ -42,6 +42,17 @@ class LocationManager: NSObject, ObservableObject {
     /// 是否超速
     @Published var isOverSpeed: Bool = false
 
+    // MARK: - Validation State Properties
+
+    /// 领地验证是否通过
+    @Published var territoryValidationPassed: Bool = false
+
+    /// 领地验证错误信息
+    @Published var territoryValidationError: String? = nil
+
+    /// 计算得到的领地面积
+    @Published var calculatedArea: Double = 0
+
     // MARK: - Private Properties
 
     /// CoreLocation 管理器
@@ -56,13 +67,19 @@ class LocationManager: NSObject, ObservableObject {
     /// 上次位置的时间戳（用于速度计算）
     private var lastLocationTimestamp: Date?
 
-    // MARK: - Constants
+    // MARK: - Validation Constants
 
     /// 闭环距离阈值（米）
     private let closureDistanceThreshold: Double = 30.0
 
     /// 最少路径点数
     private let minimumPathPoints: Int = 10
+
+    /// 最小行走距离（米）
+    private let minimumTotalDistance: Double = 50.0
+
+    /// 最小领地面积（平方米）
+    private let minimumEnclosedArea: Double = 100.0
 
     // MARK: - Computed Properties
 
@@ -168,8 +185,16 @@ class LocationManager: NSObject, ObservableObject {
         // 标记为未追踪
         isTracking = false
 
-        print("⏹️ 停止路径追踪，共记录 \(pathCoordinates.count) 个点")
-        TerritoryLogger.shared.log("停止追踪，共 \(pathCoordinates.count) 个点", type: .info)
+        // ⚠️ 重置所有验证和追踪状态
+        territoryValidationPassed = false
+        territoryValidationError = nil
+        calculatedArea = 0
+        isPathClosed = false
+        pathCoordinates.removeAll()
+        pathUpdateVersion = 0
+
+        print("⏹️ 停止路径追踪，所有状态已重置")
+        TerritoryLogger.shared.log("停止追踪，所有状态已重置", type: .info)
     }
 
     /// 清除路径
@@ -249,10 +274,215 @@ class LocationManager: NSObject, ObservableObject {
             pathUpdateVersion += 1  // 触发 UI 更新
             print("✅ 闭环检测成功！距离起点 \(String(format: "%.1f", distance)) 米")
             TerritoryLogger.shared.log("闭环成功！距起点 \(String(format: "%.1f", distance))m", type: .success)
+
+            // ⭐ 闭环成功后，立即进行领地验证
+            let validationResult = validateTerritory()
+
+            // 更新验证状态属性
+            territoryValidationPassed = validationResult.isValid
+            territoryValidationError = validationResult.errorMessage
+
+            // 如果验证通过，保存计算的面积
+            if validationResult.isValid {
+                calculatedArea = calculatePolygonArea()
+            } else {
+                calculatedArea = 0
+            }
         } else {
             print("⚪️ 闭环检测：距离起点 \(String(format: "%.1f", distance)) 米（需 ≤ \(closureDistanceThreshold) 米）")
             TerritoryLogger.shared.log("距起点 \(String(format: "%.1f", distance))m (需≤30m)", type: .info)
         }
+    }
+
+    // MARK: - Distance and Area Calculation (距离与面积计算)
+
+    /// 计算路径总距离
+    /// - Returns: 总距离（米）
+    private func calculateTotalPathDistance() -> Double {
+        guard pathCoordinates.count >= 2 else { return 0 }
+
+        var totalDistance: Double = 0
+
+        // 遍历相邻点，累加距离
+        for i in 0..<pathCoordinates.count - 1 {
+            let location1 = CLLocation(latitude: pathCoordinates[i].latitude,
+                                      longitude: pathCoordinates[i].longitude)
+            let location2 = CLLocation(latitude: pathCoordinates[i + 1].latitude,
+                                      longitude: pathCoordinates[i + 1].longitude)
+            totalDistance += location1.distance(from: location2)
+        }
+
+        return totalDistance
+    }
+
+    /// 计算多边形面积（鞋带公式，考虑地球曲率）
+    /// - Returns: 面积（平方米）
+    private func calculatePolygonArea() -> Double {
+        guard pathCoordinates.count >= 3 else { return 0 }
+
+        let earthRadius: Double = 6371000  // 地球半径（米）
+        var area: Double = 0
+
+        // 鞋带公式（球面修正）
+        for i in 0..<pathCoordinates.count {
+            let current = pathCoordinates[i]
+            let next = pathCoordinates[(i + 1) % pathCoordinates.count]  // 循环取点
+
+            // 经纬度转弧度
+            let lat1 = current.latitude * .pi / 180
+            let lon1 = current.longitude * .pi / 180
+            let lat2 = next.latitude * .pi / 180
+            let lon2 = next.longitude * .pi / 180
+
+            // 鞋带公式（球面修正）
+            area += (lon2 - lon1) * (2 + sin(lat1) + sin(lat2))
+        }
+
+        area = abs(area * earthRadius * earthRadius / 2.0)
+        return area
+    }
+
+    // MARK: - Self-Intersection Detection (自相交检测)
+
+    /// CCW 算法辅助函数：判断三点是否逆时针排列
+    /// - Parameters:
+    ///   - A: 第一个点
+    ///   - B: 第二个点
+    ///   - C: 第三个点
+    /// - Returns: 叉积 > 0 为 true（逆时针）
+    private func ccw(_ A: CLLocationCoordinate2D, _ B: CLLocationCoordinate2D, _ C: CLLocationCoordinate2D) -> Bool {
+        // ⚠️ 坐标映射：longitude = X轴，latitude = Y轴
+        // 叉积公式：(Cy - Ay) × (Bx - Ax) - (By - Ay) × (Cx - Ax)
+        let crossProduct = (C.latitude - A.latitude) * (B.longitude - A.longitude) -
+                          (B.latitude - A.latitude) * (C.longitude - A.longitude)
+        return crossProduct > 0
+    }
+
+    /// 判断两条线段是否相交
+    /// - Parameters:
+    ///   - p1: 线段1的起点
+    ///   - p2: 线段1的终点
+    ///   - p3: 线段2的起点
+    ///   - p4: 线段2的终点
+    /// - Returns: true = 相交
+    private func segmentsIntersect(p1: CLLocationCoordinate2D, p2: CLLocationCoordinate2D,
+                                   p3: CLLocationCoordinate2D, p4: CLLocationCoordinate2D) -> Bool {
+        // 使用 CCW 算法判断两线段是否相交
+        // 相交条件：ccw(p1, p3, p4) ≠ ccw(p2, p3, p4) 且 ccw(p1, p2, p3) ≠ ccw(p1, p2, p4)
+        let ccw1 = ccw(p1, p3, p4)
+        let ccw2 = ccw(p2, p3, p4)
+        let ccw3 = ccw(p1, p2, p3)
+        let ccw4 = ccw(p1, p2, p4)
+
+        return (ccw1 != ccw2) && (ccw3 != ccw4)
+    }
+
+    /// 检测路径是否有自相交（画"8"字形）
+    /// - Returns: true = 有自交（验证失败）
+    func hasPathSelfIntersection() -> Bool {
+        // ✅ 防御性检查：至少需要4个点才可能自交
+        guard pathCoordinates.count >= 4 else { return false }
+
+        // ✅ 创建路径快照的深拷贝，避免并发修改问题
+        let pathSnapshot = Array(pathCoordinates)
+
+        // ✅ 再次检查快照是否有效
+        guard pathSnapshot.count >= 4 else { return false }
+
+        let segmentCount = pathSnapshot.count - 1
+
+        // ✅ 防御性检查：确保有足够的线段
+        guard segmentCount >= 2 else { return false }
+
+        // ✅ 闭环时需要跳过的首尾线段数量（防止正常圈地被误判为自交）
+        let skipHeadCount = 2
+        let skipTailCount = 2
+
+        // 遍历每条线段
+        for i in 0..<segmentCount {
+            guard i < pathSnapshot.count - 1 else { break }
+
+            let p1 = pathSnapshot[i]
+            let p2 = pathSnapshot[i + 1]
+
+            // 对比每条非相邻线段
+            let startJ = i + 2
+            guard startJ < segmentCount else { continue }
+
+            for j in startJ..<segmentCount {
+                guard j < pathSnapshot.count - 1 else { break }
+
+                // ✅ 跳过首尾附近线段的比较（防止闭环时误判）
+                let isHeadSegment = i < skipHeadCount
+                let isTailSegment = j >= segmentCount - skipTailCount
+
+                if isHeadSegment && isTailSegment {
+                    continue
+                }
+
+                let p3 = pathSnapshot[j]
+                let p4 = pathSnapshot[j + 1]
+
+                // 检测线段是否相交
+                if segmentsIntersect(p1: p1, p2: p2, p3: p3, p4: p4) {
+                    TerritoryLogger.shared.log("自交检测: 线段\(i)-\(i+1) 与 线段\(j)-\(j+1) 相交", type: .error)
+                    return true
+                }
+            }
+        }
+
+        TerritoryLogger.shared.log("自交检测: 无交叉 ✓", type: .info)
+        return false
+    }
+
+    // MARK: - Territory Validation (综合验证)
+
+    /// 综合验证领地是否符合规则
+    /// - Returns: (isValid: 验证是否通过, errorMessage: 错误信息)
+    func validateTerritory() -> (isValid: Bool, errorMessage: String?) {
+        TerritoryLogger.shared.log("开始领地验证", type: .info)
+
+        // 1. 点数检查
+        let pointCount = pathCoordinates.count
+        if pointCount < minimumPathPoints {
+            let error = "点数不足: \(pointCount)个点 (需≥\(minimumPathPoints)个)"
+            TerritoryLogger.shared.log("点数检查: \(error)", type: .error)
+            TerritoryLogger.shared.log("领地验证失败", type: .error)
+            return (false, error)
+        }
+        TerritoryLogger.shared.log("点数检查: \(pointCount)个点 ✓", type: .info)
+
+        // 2. 距离检查
+        let totalDistance = calculateTotalPathDistance()
+        if totalDistance < minimumTotalDistance {
+            let error = "距离不足: \(String(format: "%.0f", totalDistance))m (需≥\(String(format: "%.0f", minimumTotalDistance))m)"
+            TerritoryLogger.shared.log("距离检查: \(error)", type: .error)
+            TerritoryLogger.shared.log("领地验证失败", type: .error)
+            return (false, error)
+        }
+        TerritoryLogger.shared.log("距离检查: \(String(format: "%.0f", totalDistance))m ✓", type: .info)
+
+        // 3. 自交检测
+        if hasPathSelfIntersection() {
+            let error = "轨迹自相交，请勿画8字形"
+            TerritoryLogger.shared.log("领地验证失败", type: .error)
+            return (false, error)
+        }
+        // hasPathSelfIntersection 内部已经记录了日志
+
+        // 4. 面积检查
+        let area = calculatePolygonArea()
+        if area < minimumEnclosedArea {
+            let error = "面积不足: \(String(format: "%.0f", area))m² (需≥\(String(format: "%.0f", minimumEnclosedArea))m²)"
+            TerritoryLogger.shared.log("面积检查: \(error)", type: .error)
+            TerritoryLogger.shared.log("领地验证失败", type: .error)
+            return (false, error)
+        }
+        TerritoryLogger.shared.log("面积检查: \(String(format: "%.0f", area))m² ✓", type: .info)
+
+        // 验证通过
+        TerritoryLogger.shared.log("领地验证通过！面积: \(String(format: "%.0f", area))m²", type: .success)
+        return (true, nil)
     }
 
     // MARK: - Speed Validation

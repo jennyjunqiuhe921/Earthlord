@@ -18,6 +18,9 @@ struct RootView: View {
     /// 位置管理器（全局共享）
     @StateObject private var locationManager = LocationManager()
 
+    /// 领地管理器（全局共享）
+    @StateObject private var territoryManager = TerritoryManager()
+
     /// 启动页是否完成
     @State private var splashFinished = false
 
@@ -32,6 +35,7 @@ struct RootView: View {
                 MainTabView()
                     .environmentObject(authManager)
                     .environmentObject(locationManager)
+                    .environmentObject(territoryManager)
                     .transition(.opacity)
             } else {
                 // 未认证 - 显示认证页面
