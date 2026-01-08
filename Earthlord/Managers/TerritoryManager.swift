@@ -112,7 +112,7 @@ class TerritoryManager: ObservableObject {
 
     // MARK: - Public Methods
 
-    /// 上传领地到数据库
+    /// 上传领地到数据库（带幂等性检查）
     /// - Parameters:
     ///   - coordinates: 领地边界坐标数组
     ///   - area: 领地面积（平方米）
@@ -128,6 +128,25 @@ class TerritoryManager: ObservableObject {
             let session = try await supabase.auth.session
             let userId = session.user.id
             print("✅ 获取用户 ID: \(userId)")
+
+            // ⚠️ 幂等性检查：检查是否已存在相同开始时间的领地
+            let startTimeString = ISO8601DateFormatter().string(from: startTime)
+            print("🔍 检查重复领地 (started_at: \(startTimeString))...")
+
+            let existingTerritories: [Territory] = try await supabase
+                .from("territories")
+                .select()
+                .eq("user_id", value: userId.uuidString)
+                .eq("started_at", value: startTimeString)
+                .execute()
+                .value
+
+            if !existingTerritories.isEmpty {
+                print("⚠️ 检测到重复领地，已存在 \(existingTerritories.count) 个相同的领地")
+                TerritoryLogger.shared.log("领地已存在，跳过上传", type: .info)
+                isLoading = false
+                return // 已存在，直接返回成功
+            }
 
             // 转换数据格式
             let pathJSON = coordinatesToPathJSON(coordinates)
@@ -150,7 +169,7 @@ class TerritoryManager: ObservableObject {
                 bboxMaxLon: bbox.maxLon,
                 area: area,
                 pointCount: coordinates.count,
-                startedAt: ISO8601DateFormatter().string(from: startTime),
+                startedAt: startTimeString,
                 isActive: true
             )
 
@@ -166,40 +185,155 @@ class TerritoryManager: ObservableObject {
             isLoading = false
 
         } catch {
-            print("❌ 上传失败: \(error.localizedDescription)")
-            TerritoryLogger.shared.log("领地上传失败: \(error.localizedDescription)", type: .error)
-            errorMessage = "上传失败: \(error.localizedDescription)"
+            let errorDesc = error.localizedDescription
+            print("❌ 上传失败: \(errorDesc)")
+            TerritoryLogger.shared.log("领地上传失败: \(errorDesc)", type: .error)
+            errorMessage = "上传失败: \(errorDesc)"
             isLoading = false
             throw error
         }
     }
 
-    /// 加载所有活跃的领地
+    /// 加载所有活跃的领地（带重试机制）
+    /// - Parameters:
+    ///   - maxRetries: 最大重试次数（默认2次）
     /// - Returns: Territory 对象数组
     /// - Throws: 加载失败时抛出错误
-    func loadAllTerritories() async throws -> [Territory] {
+    func loadAllTerritories(maxRetries: Int = 2) async throws -> [Territory] {
         print("📥 开始加载领地...")
         isLoading = true
         errorMessage = nil
 
-        do {
-            // 查询 is_active = true 的领地
-            let response: [Territory] = try await supabase
-                .from("territories")
-                .select()
-                .eq("is_active", value: true)
-                .execute()
-                .value
+        var lastError: Error?
 
-            print("✅ 加载成功，共 \(response.count) 个领地")
+        // 重试循环
+        for attempt in 1...maxRetries {
+            do {
+                if attempt > 1 {
+                    print("🔄 第 \(attempt) 次尝试加载...")
+                    // 等待一段时间再重试（0.5秒、1秒）
+                    try? await Task.sleep(nanoseconds: UInt64(attempt) * 500_000_000)
+                }
+
+                // 查询 is_active = true 的领地
+                let response: [Territory] = try await supabase
+                    .from("territories")
+                    .select()
+                    .eq("is_active", value: true)
+                    .execute()
+                    .value
+
+                print("✅ 加载成功，共 \(response.count) 个领地")
+                isLoading = false
+                return response
+
+            } catch {
+                lastError = error
+                print("❌ 第 \(attempt) 次加载失败: \(error.localizedDescription)")
+
+                // 如果是最后一次尝试，不再重试
+                if attempt == maxRetries {
+                    errorMessage = "加载失败: \(error.localizedDescription)"
+                    isLoading = false
+                    throw error
+                }
+            }
+        }
+
+        // 如果到这里说明所有重试都失败了
+        isLoading = false
+        if let error = lastError {
+            throw error
+        }
+
+        return [] // 默认返回空数组
+    }
+
+    /// 加载我的领地（带重试机制）
+    /// - Parameters:
+    ///   - maxRetries: 最大重试次数（默认2次）
+    /// - Returns: 当前用户的领地数组
+    /// - Throws: 加载失败时抛出错误
+    func loadMyTerritories(maxRetries: Int = 2) async throws -> [Territory] {
+        print("📥 开始加载我的领地...")
+        isLoading = true
+        errorMessage = nil
+
+        var lastError: Error?
+
+        // 重试循环
+        for attempt in 1...maxRetries {
+            do {
+                if attempt > 1 {
+                    print("🔄 第 \(attempt) 次尝试加载...")
+                    try? await Task.sleep(nanoseconds: UInt64(attempt) * 500_000_000)
+                }
+
+                // 获取当前用户
+                guard let userId = try? await supabase.auth.session.user.id else {
+                    throw NSError(domain: "TerritoryManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "未登录"])
+                }
+
+                // 查询当前用户的活跃领地，按创建时间倒序
+                let response: [Territory] = try await supabase
+                    .from("territories")
+                    .select()
+                    .eq("user_id", value: userId.uuidString)
+                    .eq("is_active", value: true)
+                    .order("created_at", ascending: false)
+                    .execute()
+                    .value
+
+                print("✅ 加载我的领地成功，共 \(response.count) 个")
+                isLoading = false
+                return response
+
+            } catch {
+                lastError = error
+                print("❌ 第 \(attempt) 次加载失败: \(error.localizedDescription)")
+
+                if attempt == maxRetries {
+                    errorMessage = "加载失败: \(error.localizedDescription)"
+                    isLoading = false
+                    throw error
+                }
+            }
+        }
+
+        isLoading = false
+        if let error = lastError {
+            throw error
+        }
+
+        return []
+    }
+
+    /// 删除领地
+    /// - Parameter territoryId: 领地 ID
+    /// - Returns: 删除是否成功
+    func deleteTerritory(territoryId: String) async -> Bool {
+        print("🗑️ 开始删除领地: \(territoryId)")
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            try await supabase
+                .from("territories")
+                .delete()
+                .eq("id", value: territoryId)
+                .execute()
+
+            print("✅ 领地删除成功")
+            TerritoryLogger.shared.log("领地删除成功：ID \(territoryId)", type: .info)
             isLoading = false
-            return response
+            return true
 
         } catch {
-            print("❌ 加载失败: \(error.localizedDescription)")
-            errorMessage = "加载失败: \(error.localizedDescription)"
+            print("❌ 领地删除失败: \(error.localizedDescription)")
+            TerritoryLogger.shared.log("领地删除失败: \(error.localizedDescription)", type: .error)
+            errorMessage = "删除失败: \(error.localizedDescription)"
             isLoading = false
-            throw error
+            return false
         }
     }
 }

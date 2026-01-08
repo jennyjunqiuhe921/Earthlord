@@ -315,31 +315,43 @@ class LocationManager: NSObject, ObservableObject {
         return totalDistance
     }
 
-    /// 计算多边形面积（鞋带公式，考虑地球曲率）
+    /// 计算多边形面积（投影平面鞋带公式）
     /// - Returns: 面积（平方米）
     private func calculatePolygonArea() -> Double {
         guard pathCoordinates.count >= 3 else { return 0 }
 
-        let earthRadius: Double = 6371000  // 地球半径（米）
-        var area: Double = 0
+        // 对于小区域（几公里范围内），使用投影到平面的鞋带公式足够准确
+        // 将经纬度转换为米制坐标（使用第一个点作为原点）
+        guard let origin = pathCoordinates.first else { return 0 }
 
-        // 鞋带公式（球面修正）
-        for i in 0..<pathCoordinates.count {
-            let current = pathCoordinates[i]
-            let next = pathCoordinates[(i + 1) % pathCoordinates.count]  // 循环取点
+        // 计算平均纬度，用于经度到米的转换
+        let avgLat = pathCoordinates.map { $0.latitude }.reduce(0, +) / Double(pathCoordinates.count)
+        let metersPerDegreeLon = cos(avgLat * .pi / 180) * 111320.0  // 经度1度对应的米数
+        let metersPerDegreeLat = 111320.0  // 纬度1度对应的米数（常数）
 
-            // 经纬度转弧度
-            let lat1 = current.latitude * .pi / 180
-            let lon1 = current.longitude * .pi / 180
-            let lat2 = next.latitude * .pi / 180
-            let lon2 = next.longitude * .pi / 180
+        // 计算每个点相对于原点的米制坐标
+        var projectedPoints: [(x: Double, y: Double)] = []
 
-            // 鞋带公式（球面修正）
-            area += (lon2 - lon1) * (2 + sin(lat1) + sin(lat2))
+        for coord in pathCoordinates {
+            // 经度差转 x（米）
+            let dx = (coord.longitude - origin.longitude) * metersPerDegreeLon
+
+            // 纬度差转 y（米）
+            let dy = (coord.latitude - origin.latitude) * metersPerDegreeLat
+
+            projectedPoints.append((x: dx, y: dy))
         }
 
-        area = abs(area * earthRadius * earthRadius / 2.0)
-        return area
+        // 应用标准鞋带公式：Area = |∑(x_i × y_{i+1} - x_{i+1} × y_i)| / 2
+        var area: Double = 0
+        for i in 0..<projectedPoints.count {
+            let current = projectedPoints[i]
+            let next = projectedPoints[(i + 1) % projectedPoints.count]
+
+            area += current.x * next.y - next.x * current.y
+        }
+
+        return abs(area / 2.0)
     }
 
     // MARK: - Self-Intersection Detection (自相交检测)

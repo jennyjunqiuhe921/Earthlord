@@ -413,10 +413,16 @@ struct MapTabView: View {
             }
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 16))
+                if territoryManager.isLoading {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(0.8)
+                } else {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 16))
+                }
 
-                Text("确认登记领地")
+                Text(territoryManager.isLoading ? "上传中..." : "确认登记领地")
                     .font(.system(size: 15, weight: .semibold))
             }
             .foregroundColor(.white)
@@ -424,10 +430,11 @@ struct MapTabView: View {
             .padding(.vertical, 12)
             .background(
                 Capsule()
-                    .fill(Color.green)
+                    .fill(territoryManager.isLoading ? Color.gray : Color.green)
                     .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
             )
         }
+        .disabled(territoryManager.isLoading) // ⚠️ 上传中禁用按钮
     }
 
     /// 上传消息横幅
@@ -485,18 +492,39 @@ struct MapTabView: View {
             await loadTerritories()
 
         } catch {
-            // 上传失败
-            showUploadError("上传失败: \(error.localizedDescription)")
+            // 上传失败 - 不清除数据，允许用户稍后重试
+            let errorDesc = error.localizedDescription
+
+            // 判断是否为网络错误
+            if errorDesc.contains("网络") || errorDesc.contains("connection") ||
+               errorDesc.contains("network") || errorDesc.contains("Internet") {
+                showUploadError("网络连接失败，请检查网络后点击\"上传领地\"重试")
+            } else {
+                showUploadError("上传失败: \(errorDesc)")
+            }
+
+            // ⚠️ 注意：不调用 stopPathTracking()，保留数据供重试使用
+            TerritoryLogger.shared.log("领地数据已保留，可稍后重试", type: .info)
         }
     }
 
-    /// 加载所有领地
+    /// 加载所有领地（静默失败，不阻塞用户操作）
     private func loadTerritories() async {
         do {
             territories = try await territoryManager.loadAllTerritories()
             TerritoryLogger.shared.log("加载了 \(territories.count) 个领地", type: .info)
         } catch {
-            TerritoryLogger.shared.log("加载领地失败: \(error.localizedDescription)", type: .error)
+            // ⚠️ 静默失败：加载领地失败不影响用户继续圈地和上传
+            let errorDesc = error.localizedDescription
+            TerritoryLogger.shared.log("加载领地失败: \(errorDesc)", type: .error)
+
+            // 如果是网络错误，保持现有的领地列表不变
+            if errorDesc.contains("网络") || errorDesc.contains("connection") ||
+               errorDesc.contains("network") || errorDesc.contains("Internet") {
+                TerritoryLogger.shared.log("网络不可用，将在下次恢复时自动加载", type: .info)
+            }
+
+            // 不抛出错误，允许用户继续使用应用
         }
     }
 
