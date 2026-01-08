@@ -79,7 +79,7 @@ class LocationManager: NSObject, ObservableObject {
     private let minimumTotalDistance: Double = 50.0
 
     /// 最小领地面积（平方米）
-    private let minimumEnclosedArea: Double = 100.0
+    private let minimumEnclosedArea: Double = 50.0
 
     // MARK: - Computed Properties
 
@@ -114,7 +114,7 @@ class LocationManager: NSObject, ObservableObject {
         // 配置 LocationManager
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBest  // 最高精度
-        locationManager.distanceFilter = 10  // 移动10米才更新一次
+        locationManager.distanceFilter = 5  // 移动5米才更新一次
 
         // 如果已授权，开始定位
         if isAuthorized {
@@ -233,8 +233,8 @@ class LocationManager: NSObject, ObservableObject {
         let lastLocation = CLLocation(latitude: lastCoordinate.latitude, longitude: lastCoordinate.longitude)
         let distance = location.distance(from: lastLocation)
 
-        // 距离超过 10 米才记录新点（过滤 GPS 抖动）
-        if distance > 10 {
+        // 距离超过 5 米才记录新点（过滤 GPS 抖动）
+        if distance > 5 {
             pathCoordinates.append(location.coordinate)
             pathUpdateVersion += 1
             lastLocationTimestamp = Date()
