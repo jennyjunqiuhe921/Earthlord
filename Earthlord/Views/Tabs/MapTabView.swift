@@ -770,49 +770,81 @@ struct MapTabView: View {
 
     /// Day 19: 触发震动反馈
     private func triggerHapticFeedback(level: WarningLevel) {
+        // 添加调试日志
+        print("🔔 触发震动 - 级别: \(level)")
+        TerritoryLogger.shared.log("触发震动反馈 - 级别: \(level.rawValue)", type: .info)
+
         // 确保在主线程执行
-        DispatchQueue.main.async {
-            switch level {
-            case .safe:
-                // 安全：无震动
-                break
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async {
+                self.triggerHapticFeedback(level: level)
+            }
+            return
+        }
 
-            case .caution:
-                // 注意：轻震 1 次 - 使用通知反馈
-                let generator = UINotificationFeedbackGenerator()
-                generator.prepare()
+        switch level {
+        case .safe:
+            // 安全：无震动
+            break
+
+        case .caution:
+            // 注意：轻震 1 次 - 使用通知反馈
+            let generator = UINotificationFeedbackGenerator()
+            generator.prepare()
+            // 延迟一小段时间以确保 prepare 完成
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 generator.notificationOccurred(.warning)
+                print("✅ 执行了 caution 震动")
+            }
 
-            case .warning:
-                // 警告：中震 2 次 - 使用撞击反馈
-                let generator = UIImpactFeedbackGenerator(style: .medium)
-                generator.prepare()
-                generator.impactOccurred()
+        case .warning:
+            // 警告：中震 2 次 - 使用撞击反馈
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.prepare()
 
-                // 保持 generator 引用，0.2秒后再次震动
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            // 使用 withExtendedLifetime 确保 generator 不会被释放
+            withExtendedLifetime(generator) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                     generator.impactOccurred()
+                    print("✅ 执行了 warning 震动 1/2")
+
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        generator.impactOccurred()
+                        print("✅ 执行了 warning 震动 2/2")
+                    }
                 }
+            }
 
-            case .danger:
-                // 危险：强震 3 次 - 使用重度撞击反馈
-                let generator = UIImpactFeedbackGenerator(style: .heavy)
-                generator.prepare()
-                generator.impactOccurred()
+        case .danger:
+            // 危险：强震 3 次 - 使用重度撞击反馈
+            let generator = UIImpactFeedbackGenerator(style: .heavy)
+            generator.prepare()
 
-                // 保持 generator 引用，连续震动
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            // 使用 withExtendedLifetime 确保 generator 不会被释放
+            withExtendedLifetime(generator) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                     generator.impactOccurred()
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                    generator.impactOccurred()
-                }
+                    print("✅ 执行了 danger 震动 1/3")
 
-            case .violation:
-                // 违规：错误震动 - 使用通知反馈
-                let generator = UINotificationFeedbackGenerator()
-                generator.prepare()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        generator.impactOccurred()
+                        print("✅ 执行了 danger 震动 2/3")
+                    }
+
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        generator.impactOccurred()
+                        print("✅ 执行了 danger 震动 3/3")
+                    }
+                }
+            }
+
+        case .violation:
+            // 违规：错误震动 - 使用通知反馈
+            let generator = UINotificationFeedbackGenerator()
+            generator.prepare()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 generator.notificationOccurred(.error)
+                print("✅ 执行了 violation 震动")
             }
         }
     }
