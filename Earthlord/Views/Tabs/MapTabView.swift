@@ -770,43 +770,50 @@ struct MapTabView: View {
 
     /// Day 19: 触发震动反馈
     private func triggerHapticFeedback(level: WarningLevel) {
-        switch level {
-        case .safe:
-            // 安全：无震动
-            break
+        // 确保在主线程执行
+        DispatchQueue.main.async {
+            switch level {
+            case .safe:
+                // 安全：无震动
+                break
 
-        case .caution:
-            // 注意：轻震 1 次
-            let generator = UINotificationFeedbackGenerator()
-            generator.prepare()
-            generator.notificationOccurred(.warning)
+            case .caution:
+                // 注意：轻震 1 次 - 使用通知反馈
+                let generator = UINotificationFeedbackGenerator()
+                generator.prepare()
+                generator.notificationOccurred(.warning)
 
-        case .warning:
-            // 警告：中震 2 次
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.prepare()
-            generator.impactOccurred()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            case .warning:
+                // 警告：中震 2 次 - 使用撞击反馈
+                let generator = UIImpactFeedbackGenerator(style: .medium)
+                generator.prepare()
                 generator.impactOccurred()
-            }
 
-        case .danger:
-            // 危险：强震 3 次
-            let generator = UIImpactFeedbackGenerator(style: .heavy)
-            generator.prepare()
-            generator.impactOccurred()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                generator.impactOccurred()
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                generator.impactOccurred()
-            }
+                // 保持 generator 引用，0.2秒后再次震动
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    generator.impactOccurred()
+                }
 
-        case .violation:
-            // 违规：错误震动
-            let generator = UINotificationFeedbackGenerator()
-            generator.prepare()
-            generator.notificationOccurred(.error)
+            case .danger:
+                // 危险：强震 3 次 - 使用重度撞击反馈
+                let generator = UIImpactFeedbackGenerator(style: .heavy)
+                generator.prepare()
+                generator.impactOccurred()
+
+                // 保持 generator 引用，连续震动
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    generator.impactOccurred()
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    generator.impactOccurred()
+                }
+
+            case .violation:
+                // 违规：错误震动 - 使用通知反馈
+                let generator = UINotificationFeedbackGenerator()
+                generator.prepare()
+                generator.notificationOccurred(.error)
+            }
         }
     }
 }
