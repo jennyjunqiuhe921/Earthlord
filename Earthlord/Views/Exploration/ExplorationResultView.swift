@@ -211,7 +211,7 @@ struct ExplorationResultView: View {
         }
 
         // 延迟 0.5 秒后开始显示奖励物品（每个间隔 0.2 秒）
-        for (index, _) in result!.stats.itemsFoundThisSession.enumerated() {
+        for (index, _) in result.stats.itemsFoundThisSession.enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5 + Double(index) * 0.2) {
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
                     _ = visibleRewardIndices.insert(index)

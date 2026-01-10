@@ -45,6 +45,10 @@ struct MapTabView: View {
     @State private var showCollisionWarning = false
     @State private var collisionWarningLevel: WarningLevel = .safe
 
+    // MARK: - 探索功能状态
+    @State private var isExploring = false
+    @State private var showExplorationResult = false
+
     // MARK: - Computed Properties
 
     /// 当前用户 ID
@@ -124,22 +128,26 @@ struct MapTabView: View {
             // 右下角按钮组
             VStack {
                 Spacer()
-                HStack {
-                    Spacer()
-                    VStack(spacing: 12) {
-                        // 定位按钮
-                        locationButton
 
-                        // 圈地按钮
-                        claimButton
+                // 底部按钮组 - 水平排列
+                HStack(spacing: 12) {
+                    // 左侧：圈地按钮
+                    claimButton
 
-                        // 确认登记按钮（仅在验证通过时显示）
-                        if locationManager.territoryValidationPassed {
-                            confirmRegistrationButton
-                        }
-                    }
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 20)
+                    // 中间：定位按钮
+                    locationButton
+
+                    // 右侧：探索按钮
+                    exploreButton
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+
+                // 确认登记按钮（仅在验证通过时显示）
+                if locationManager.territoryValidationPassed {
+                    confirmRegistrationButton
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
                 }
             }
 
@@ -178,6 +186,10 @@ struct MapTabView: View {
                     }
                 }
             }
+        }
+        // 探索结果弹窗
+        .sheet(isPresented: $showExplorationResult) {
+            ExplorationResultView(result: MockExplorationData.mockExplorationResult)
         }
     }
 
@@ -237,6 +249,42 @@ struct MapTabView: View {
                         .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
                 )
         }
+    }
+
+    /// 探索按钮
+    private var exploreButton: some View {
+        Button {
+            handleExplore()
+        } label: {
+            HStack(spacing: 8) {
+                if isExploring {
+                    // 加载中显示转圈
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(0.8)
+
+                    Text("探索中...")
+                        .font(.system(size: 15, weight: .semibold))
+                } else {
+                    // 图标
+                    Image(systemName: "binoculars.fill")
+                        .font(.system(size: 16))
+
+                    // 文字
+                    Text("探索")
+                        .font(.system(size: 15, weight: .semibold))
+                }
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                Capsule()
+                    .fill(isExploring ? Color.gray : ApocalypseTheme.primary)
+                    .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
+            )
+        }
+        .disabled(isExploring)
     }
 
     /// 圈地按钮（开始/停止追踪）
@@ -518,6 +566,19 @@ struct MapTabView: View {
     }
 
     // MARK: - Methods
+
+    /// 处理探索按钮点击
+    private func handleExplore() {
+        // 设置为探索中状态
+        isExploring = true
+
+        // 模拟 1.5 秒的搜索过程
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            isExploring = false
+            // 显示探索结果弹窗
+            showExplorationResult = true
+        }
+    }
 
     /// 上传当前领地
     private func uploadCurrentTerritory() async {
