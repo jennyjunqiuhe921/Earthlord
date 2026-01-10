@@ -186,10 +186,10 @@ struct POIListView: View {
                 emptyState
             } else {
                 ForEach(filteredPOIs) { poi in
-                    POICard(poi: poi)
-                        .onTapGesture {
-                            handlePOITap(poi)
-                        }
+                    NavigationLink(destination: POIDetailView(poi: poi)) {
+                        POICard(poi: poi)
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
             }
         }
@@ -222,12 +222,6 @@ struct POIListView: View {
             isSearching = false
             print("✅ 搜索完成")
         }
-    }
-
-    /// 处理 POI 点击
-    private func handlePOITap(_ poi: POI) {
-        print("🗺️ 点击了 POI: \(poi.name) (类型: \(poi.type.rawValue), 状态: \(poi.status.rawValue))")
-        // TODO: 跳转到 POI 详情页
     }
 
     /// 获取 POI 图标

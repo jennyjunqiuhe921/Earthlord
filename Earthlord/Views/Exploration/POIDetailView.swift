@@ -142,6 +142,9 @@ struct POIDetailView: View {
             .ignoresSafeArea(edges: .top)
         }
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showExplorationResult) {
+            ExplorationResultView(result: MockExplorationData.mockExplorationResult)
+        }
     }
 
     // MARK: - 顶部大图区域
