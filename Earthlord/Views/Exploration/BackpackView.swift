@@ -320,17 +320,61 @@ struct BackpackView: View {
     // MARK: - 空状态
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "tray.fill")
-                .font(.system(size: 60))
+        VStack(spacing: 20) {
+            // 图标
+            Image(systemName: emptyStateIcon)
+                .font(.system(size: 60, weight: .medium))
                 .foregroundColor(ApocalypseTheme.textMuted)
 
-            Text(searchText.isEmpty ? "背包里空空如也" : "未找到符合条件的物品")
-                .font(.system(size: 16, weight: .medium))
+            // 主标题
+            Text(emptyStateTitle)
+                .font(.system(size: 18, weight: .bold))
                 .foregroundColor(ApocalypseTheme.textSecondary)
+
+            // 副标题
+            Text(emptyStateSubtitle)
+                .font(.system(size: 14, weight: .regular))
+                .foregroundColor(ApocalypseTheme.textMuted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 60)
+        .padding(.vertical, 80)
+    }
+
+    // MARK: - Empty State Helpers
+
+    /// 空状态图标
+    private var emptyStateIcon: String {
+        if inventoryItems.isEmpty {
+            return "backpack.fill"
+        } else if !searchText.isEmpty {
+            return "magnifyingglass.circle.fill"
+        } else {
+            return "tray.fill"
+        }
+    }
+
+    /// 空状态标题
+    private var emptyStateTitle: String {
+        if inventoryItems.isEmpty {
+            return "背包空空如也"
+        } else if !searchText.isEmpty {
+            return "没有找到相关物品"
+        } else {
+            return "该分类暂无物品"
+        }
+    }
+
+    /// 空状态副标题
+    private var emptyStateSubtitle: String {
+        if inventoryItems.isEmpty {
+            return "去探索收集物资吧"
+        } else if !searchText.isEmpty {
+            return "尝试使用其他关键词或清除搜索"
+        } else {
+            return "切换其他分类查看物品"
+        }
     }
 }
 

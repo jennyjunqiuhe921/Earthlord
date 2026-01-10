@@ -227,17 +227,55 @@ struct POIListView: View {
     // MARK: - 空状态
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "questionmark.circle.fill")
-                .font(.system(size: 60))
+        VStack(spacing: 20) {
+            // 图标
+            Image(systemName: emptyStateIcon)
+                .font(.system(size: 60, weight: .medium))
                 .foregroundColor(ApocalypseTheme.textMuted)
 
-            Text("未找到符合条件的地点")
-                .font(.system(size: 16, weight: .medium))
+            // 主标题
+            Text(emptyStateTitle)
+                .font(.system(size: 18, weight: .bold))
                 .foregroundColor(ApocalypseTheme.textSecondary)
+
+            // 副标题
+            Text(emptyStateSubtitle)
+                .font(.system(size: 14, weight: .regular))
+                .foregroundColor(ApocalypseTheme.textMuted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 60)
+        .padding(.vertical, 80)
+    }
+
+    // MARK: - Empty State Helpers
+
+    /// 空状态图标
+    private var emptyStateIcon: String {
+        if pois.isEmpty {
+            return "map.fill"
+        } else {
+            return "magnifyingglass.circle.fill"
+        }
+    }
+
+    /// 空状态标题
+    private var emptyStateTitle: String {
+        if pois.isEmpty {
+            return "附近暂无兴趣点"
+        } else {
+            return "没有找到该类型的地点"
+        }
+    }
+
+    /// 空状态副标题
+    private var emptyStateSubtitle: String {
+        if pois.isEmpty {
+            return "点击搜索按钮发现周围的废墟"
+        } else {
+            return "尝试切换其他分类或清除筛选条件"
+        }
     }
 
     // MARK: - Helper Methods
