@@ -23,6 +23,12 @@ struct BackpackView: View {
     /// 背包容量配置
     private let maxCapacity = 100.0  // 最大容量（单位可以是格子数或重量）
 
+    /// 动画用的当前容量
+    @State private var animatedCapacity: Double = 0
+
+    /// 物品列表过渡 ID
+    @State private var itemListTransitionID = UUID()
+
     // MARK: - Computed Properties
 
     /// 当前使用的容量（这里简单用物品种类数量，实际应该用重量或体积）
@@ -107,6 +113,18 @@ struct BackpackView: View {
         }
         .navigationTitle("背包")
         .navigationBarTitleDisplayMode(.large)
+        .onAppear {
+            // 启动容量动画
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.8).delay(0.2)) {
+                animatedCapacity = currentCapacity
+            }
+        }
+        .onChange(of: currentCapacity) { newValue in
+            // 容量变化时的动画
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                animatedCapacity = newValue
+            }
+        }
     }
 
     // MARK: - 容量状态卡
@@ -119,13 +137,13 @@ struct BackpackView: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(capacityColor)
 
-                Text("背包容量：\(Int(currentCapacity)) / \(Int(maxCapacity))")
+                Text("背包容量：\(Int(animatedCapacity)) / \(Int(maxCapacity))")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(ApocalypseTheme.textPrimary)
 
                 Spacer()
 
-                Text("\(Int(capacityPercentage * 100))%")
+                Text("\(Int((animatedCapacity / maxCapacity) * 100))%")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(capacityColor)
             }
@@ -150,7 +168,8 @@ struct BackpackView: View {
                                 endPoint: .trailing
                             )
                         )
-                        .frame(width: geometry.size.width * min(capacityPercentage, 1.0), height: 12)
+                        .frame(width: geometry.size.width * min(animatedCapacity / maxCapacity, 1.0), height: 12)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: animatedCapacity)
                 }
             }
             .frame(height: 12)
@@ -282,6 +301,18 @@ struct BackpackView: View {
                         ItemCard(item: item, definition: definition)
                     }
                 }
+            }
+        }
+        .id(itemListTransitionID)
+        .transition(.asymmetric(
+            insertion: .opacity.combined(with: .move(edge: .trailing)),
+            removal: .opacity.combined(with: .move(edge: .leading))
+        ))
+        .animation(.easeInOut(duration: 0.3), value: itemListTransitionID)
+        .onChange(of: selectedCategory) { _ in
+            // 切换分类时更新 ID，触发过渡动画
+            withAnimation(.easeInOut(duration: 0.3)) {
+                itemListTransitionID = UUID()
             }
         }
     }

@@ -17,6 +17,17 @@ struct ExplorationResultView: View {
     /// 用于关闭弹窗
     @Environment(\.dismiss) var dismiss
 
+    // MARK: - Animation State
+
+    /// 动画用的距离数值
+    @State private var animatedDistance: Double = 0
+
+    /// 动画用的面积数值
+    @State private var animatedArea: Double = 0
+
+    /// 已显示的奖励物品索引
+    @State private var visibleRewardIndices: Set<Int> = []
+
     // MARK: - Body
 
     var body: some View {
@@ -44,6 +55,31 @@ struct ExplorationResultView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 40)
                 .padding(.bottom, 20)
+            }
+        }
+        .onAppear {
+            startAnimations()
+        }
+    }
+
+    // MARK: - Animation Methods
+
+    /// 启动所有动画
+    private func startAnimations() {
+        // 延迟 0.3 秒后开始数字跳动动画
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.spring(response: 1.0, dampingFraction: 0.7)) {
+                animatedDistance = result.stats.distanceThisSession
+                animatedArea = result.stats.areaThisSession
+            }
+        }
+
+        // 延迟 0.5 秒后开始显示奖励物品（每个间隔 0.2 秒）
+        for (index, _) in result.stats.itemsFoundThisSession.enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5 + Double(index) * 0.2) {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
+                    _ = visibleRewardIndices.insert(index)
+                }
             }
         }
     }
@@ -135,7 +171,7 @@ struct ExplorationResultView: View {
                     icon: "figure.walk",
                     iconColor: ApocalypseTheme.primary,
                     title: "行走距离",
-                    thisSession: MockExplorationData.formatDistance(result.stats.distanceThisSession),
+                    thisSession: MockExplorationData.formatDistance(animatedDistance),
                     total: MockExplorationData.formatDistance(result.stats.totalDistance),
                     rank: result.stats.distanceRank
                 )
@@ -148,7 +184,7 @@ struct ExplorationResultView: View {
                     icon: "map",
                     iconColor: ApocalypseTheme.success,
                     title: "探索面积",
-                    thisSession: MockExplorationData.formatArea(result.stats.areaThisSession),
+                    thisSession: MockExplorationData.formatArea(animatedArea),
                     total: MockExplorationData.formatArea(result.stats.totalArea),
                     rank: result.stats.areaRank
                 )
@@ -229,9 +265,13 @@ struct ExplorationResultView: View {
                 .background(ApocalypseTheme.cardBackground)
             } else {
                 VStack(spacing: 12) {
-                    ForEach(result.stats.itemsFoundThisSession) { loot in
+                    ForEach(Array(result.stats.itemsFoundThisSession.enumerated()), id: \.element.id) { index, loot in
                         if let definition = MockExplorationData.getItemDefinition(by: loot.definitionId) {
-                            RewardItemRow(definition: definition, quantity: loot.quantity)
+                            RewardItemRow(
+                                definition: definition,
+                                quantity: loot.quantity,
+                                isVisible: visibleRewardIndices.contains(index)
+                            )
 
                             if loot.id != result.stats.itemsFoundThisSession.last?.id {
                                 Divider()
@@ -400,6 +440,9 @@ struct RankBadge: View {
 struct RewardItemRow: View {
     let definition: ItemDefinition
     let quantity: Int
+    let isVisible: Bool
+
+    @State private var checkmarkScale: CGFloat = 0.1
 
     var body: some View {
         HStack(spacing: 16) {
@@ -427,12 +470,23 @@ struct RewardItemRow: View {
 
             Spacer()
 
-            // 右侧对勾
+            // 右侧对勾 - 带弹跳效果
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundColor(ApocalypseTheme.success)
+                .scaleEffect(checkmarkScale)
         }
         .padding(.horizontal, 20)
+        .opacity(isVisible ? 1 : 0)
+        .offset(x: isVisible ? 0 : -20)
+        .onChange(of: isVisible) { visible in
+            if visible {
+                // 弹跳动画
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.5).delay(0.2)) {
+                    checkmarkScale = 1.0
+                }
+            }
+        }
     }
 
     // MARK: - Computed Properties

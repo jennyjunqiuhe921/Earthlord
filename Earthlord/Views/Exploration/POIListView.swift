@@ -23,6 +23,12 @@ struct POIListView: View {
     /// GPS 坐标（假数据）
     @State private var gpsCoordinate = (latitude: 22.54, longitude: 114.06)
 
+    /// 搜索按钮缩放
+    @State private var searchButtonScale: CGFloat = 1.0
+
+    /// POI 列表项是否已显示
+    @State private var poiItemsAppeared: Set<String> = []
+
     // MARK: - Computed Properties
 
     /// 筛选后的 POI 列表
@@ -142,8 +148,19 @@ struct POIListView: View {
             )
             .cornerRadius(12)
             .shadow(color: ApocalypseTheme.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+            .scaleEffect(searchButtonScale)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: searchButtonScale)
         }
         .disabled(isSearching)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    searchButtonScale = 0.95
+                }
+                .onEnded { _ in
+                    searchButtonScale = 1.0
+                }
+        )
     }
 
     // MARK: - 筛选工具栏
@@ -185,13 +202,25 @@ struct POIListView: View {
                 // 空状态
                 emptyState
             } else {
-                ForEach(filteredPOIs) { poi in
+                ForEach(Array(filteredPOIs.enumerated()), id: \.element.id) { index, poi in
                     NavigationLink(destination: POIDetailView(poi: poi)) {
                         POICard(poi: poi)
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .opacity(poiItemsAppeared.contains(poi.id) ? 1 : 0)
+                    .offset(y: poiItemsAppeared.contains(poi.id) ? 0 : 20)
+                    .animation(.easeOut(duration: 0.5).delay(Double(index) * 0.1), value: poiItemsAppeared)
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.1) {
+                            poiItemsAppeared.insert(poi.id)
+                        }
+                    }
                 }
             }
+        }
+        .onChange(of: selectedCategory) { _ in
+            // 切换分类时重置动画
+            poiItemsAppeared.removeAll()
         }
     }
 
