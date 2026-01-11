@@ -19,9 +19,22 @@
 		D2841ECD2EFADF39005261D8 /* Earthlord.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Earthlord.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D25C6AB42F134A3100979499 /* Exceptions for "Earthlord" folder in "Earthlord" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D2841ECC2EFADF39005261D8 /* Earthlord */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		D2841ECF2EFADF39005261D8 /* Earthlord */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D25C6AB42F134A3100979499 /* Exceptions for "Earthlord" folder in "Earthlord" target */,
+			);
 			path = Earthlord;
 			sourceTree = "<group>";
 		};
@@ -278,8 +291,16 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleTypeRole = Editor;\n    CFBundleURLSchemes =     (\n        \"com.googleusercontent.apps.744447936656-34vtvpphasc56s6m2jo9f6uroh2df046\"\n    );\n}";
+				INFOPLIST_FILE = Earthlord/Info.plist;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "《地球新主》需要获取您的位置来显示您在末日世界中的坐标，帮助您探索和圈定领地。";
+				INFOPLIST_KEY_CFBundleURLTypes = (
+					{
+						CFBundleTypeRole = Editor;
+						CFBundleURLSchemes = (
+							"com.googleusercontent.apps.744447936656-34vtvpphasc56s6m2jo9f6uroh2df046",
+						);
+					},
+				);
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -322,8 +343,16 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleTypeRole = Editor;\n    CFBundleURLSchemes =     (\n        \"com.googleusercontent.apps.744447936656-34vtvpphasc56s6m2jo9f6uroh2df046\"\n    );\n}";
+				INFOPLIST_FILE = Earthlord/Info.plist;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "《地球新主》需要获取您的位置来显示您在末日世界中的坐标，帮助您探索和圈定领地。";
+				INFOPLIST_KEY_CFBundleURLTypes = (
+					{
+						CFBundleTypeRole = Editor;
+						CFBundleURLSchemes = (
+							"com.googleusercontent.apps.744447936656-34vtvpphasc56s6m2jo9f6uroh2df046",
+						);
+					},
+				);
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
