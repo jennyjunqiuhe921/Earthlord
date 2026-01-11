@@ -290,7 +290,7 @@
 				DEVELOPMENT_TEAM = 6HSQ6R956A;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Earthlord/Info.plist;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "《地球新主》需要获取您的位置来显示您在末日世界中的坐标，帮助您探索和圈定领地。";
 				INFOPLIST_KEY_CFBundleURLTypes = (
@@ -342,7 +342,7 @@
 				DEVELOPMENT_TEAM = 6HSQ6R956A;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Earthlord/Info.plist;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "《地球新主》需要获取您的位置来显示您在末日世界中的坐标，帮助您探索和圈定领地。";
 				INFOPLIST_KEY_CFBundleURLTypes = (
