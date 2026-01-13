@@ -8,6 +8,17 @@
 import SwiftUI
 import Supabase
 
+/// 探索统计数据（从数据库聚合）
+struct ExplorationStatsDB: Codable {
+    let totalDistance: Double
+    let sessionCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case totalDistance = "total_distance"
+        case sessionCount = "session_count"
+    }
+}
+
 /// 个人页面 - 显示用户信息和账户设置
 struct ProfileTabView: View {
     @EnvironmentObject private var authManager: AuthManager
@@ -26,6 +37,18 @@ struct ProfileTabView: View {
 
     /// 是否显示设置页面
     @State private var showSettings = false
+
+    /// 探索总距离（米）
+    @State private var totalExplorationDistance: Double = 0
+
+    /// 领地数量
+    @State private var territoryCount: Int = 0
+
+    /// Supabase 客户端
+    private let supabase = SupabaseClient(
+        supabaseURL: URL(string: "https://acnriuoexalqvckiuvgr.supabase.co")!,
+        supabaseKey: "sb_publishable_ddDdaU8v_cxisWA6TiHDuA_BHAdLp-R"
+    )
 
     var body: some View {
         ZStack {
@@ -80,7 +103,7 @@ struct ProfileTabView: View {
 
                     // 统计数据卡片
                     HStack(spacing: 0) {
-                        StatCard(icon: "flag.fill", titleKey: "领地", value: "0", color: ApocalypseTheme.primary)
+                        StatCard(icon: "flag.fill", titleKey: "领地", value: "\(territoryCount)", color: ApocalypseTheme.primary)
 
                         Divider()
                             .frame(height: 60)
@@ -92,13 +115,18 @@ struct ProfileTabView: View {
                             .frame(height: 60)
                             .background(Color.white.opacity(0.1))
 
-                        StatCard(icon: "figure.walk", titleKey: "探索距离", value: "0", color: ApocalypseTheme.primary)
+                        StatCard(icon: "figure.walk", titleKey: "探索距离", value: formatDistance(totalExplorationDistance), color: ApocalypseTheme.primary)
                     }
                     .frame(height: 100)
                     .background(Color(red: 0.15, green: 0.15, blue: 0.15))
                     .cornerRadius(12)
                     .padding(.horizontal, 20)
                     .padding(.bottom, 30)
+                    .onAppear {
+                        Task {
+                            await loadStats()
+                        }
+                    }
 
                     // 菜单项
                     VStack(spacing: 0) {
@@ -283,6 +311,76 @@ struct ProfileTabView: View {
             return email.components(separatedBy: "@").first ?? "幸存者"
         }
         return "幸存者"
+    }
+
+    /// 格式化距离显示
+    private func formatDistance(_ meters: Double) -> String {
+        if meters < 1000 {
+            return String(format: "%.0fm", meters)
+        } else {
+            return String(format: "%.1fkm", meters / 1000)
+        }
+    }
+
+    /// 加载用户统计数据
+    private func loadStats() async {
+        guard let userId = authManager.currentUser?.id else {
+            print("❌ 无法加载统计：用户未登录")
+            return
+        }
+
+        print("📊 开始加载用户统计数据...")
+
+        // 加载探索总距离
+        do {
+            struct DistanceRow: Codable {
+                let distance_meters: Double
+            }
+
+            let response: [DistanceRow] = try await supabase
+                .from("exploration_sessions")
+                .select("distance_meters")
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+                .value
+
+            let total = response.reduce(0) { $0 + $1.distance_meters }
+            await MainActor.run {
+                totalExplorationDistance = total
+            }
+            print("✅ 探索总距离: \(total)m")
+        } catch {
+            print("❌ 加载探索距离失败: \(error.localizedDescription)")
+        }
+
+        // 加载领地数量
+        do {
+            struct CountRow: Codable {
+                let count: Int
+            }
+
+            let response: [CountRow] = try await supabase
+                .from("territories")
+                .select("*", head: true, count: .exact)
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+                .value
+
+            // 使用 count 头部获取数量
+            let count = try await supabase
+                .from("territories")
+                .select("id")
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+                .value as [[String: String]]
+
+            await MainActor.run {
+                territoryCount = count.count
+            }
+            print("✅ 领地数量: \(count.count)")
+        } catch {
+            print("❌ 加载领地数量失败: \(error.localizedDescription)")
+        }
     }
 }
 

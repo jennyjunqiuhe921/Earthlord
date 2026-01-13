@@ -175,19 +175,13 @@ struct InventoryItem: Identifiable, Codable {
 /// 探索统计
 struct ExplorationStats: Codable {
     // 本次探索
-    let distanceThisSession: Double     // 行走距离（米）
-    let areaThisSession: Double         // 探索面积（平方米）
+    let distanceThisSession: Double        // 行走距离（米）
     let durationThisSession: TimeInterval  // 探索时长（秒）
     let itemsFoundThisSession: [ItemLoot]  // 本次获得的物品
 
     // 累计统计
-    let totalDistance: Double           // 累计行走距离（米）
-    let totalArea: Double               // 累计探索面积（平方米）
-    let totalDuration: TimeInterval     // 累计探索时长（秒）
-
-    // 排名
-    let distanceRank: Int               // 距离排名
-    let areaRank: Int                   // 面积排名
+    let totalDistance: Double              // 累计行走距离（米）
+    let totalDuration: TimeInterval        // 累计探索时长（秒）
 }
 
 /// 战利品（探索获得的物品）
@@ -205,6 +199,208 @@ struct ExplorationResult: Identifiable, Codable {
     let startTime: Date
     let endTime: Date
     let stats: ExplorationStats
-    let poisDiscovered: [String]  // 发现的 POI ID 列表
-    let achievements: [String]    // 获得的成就 ID 列表
+    let rewardTier: RewardTier    // 奖励等级
+}
+
+// MARK: - 奖励等级
+
+/// 探索奖励等级
+enum RewardTier: String, Codable, CaseIterable {
+    case none = "none"          // 无奖励 (0-200m)
+    case bronze = "bronze"      // 铜级 (200-500m)
+    case silver = "silver"      // 银级 (500-1000m)
+    case gold = "gold"          // 金级 (1000-2000m)
+    case diamond = "diamond"    // 钻石级 (2000m+)
+
+    /// 该等级的物品数量
+    var itemCount: Int {
+        switch self {
+        case .none: return 0
+        case .bronze: return 1
+        case .silver: return 2
+        case .gold: return 3
+        case .diamond: return 5
+        }
+    }
+
+    /// 等级显示名称
+    var displayName: String {
+        switch self {
+        case .none: return "无奖励"
+        case .bronze: return "铜级"
+        case .silver: return "银级"
+        case .gold: return "金级"
+        case .diamond: return "钻石级"
+        }
+    }
+
+    /// 等级图标
+    var icon: String {
+        switch self {
+        case .none: return "xmark.circle"
+        case .bronze: return "medal.fill"
+        case .silver: return "medal.fill"
+        case .gold: return "medal.fill"
+        case .diamond: return "diamond.fill"
+        }
+    }
+
+    /// 等级颜色名称
+    var colorName: String {
+        switch self {
+        case .none: return "gray"
+        case .bronze: return "brown"
+        case .silver: return "gray"
+        case .gold: return "yellow"
+        case .diamond: return "cyan"
+        }
+    }
+
+    /// 稀有度概率表 [common, rare, epic]
+    var rarityProbabilities: [Double] {
+        switch self {
+        case .none: return [0, 0, 0]
+        case .bronze: return [0.90, 0.10, 0.00]    // 90% common, 10% rare, 0% epic
+        case .silver: return [0.70, 0.25, 0.05]    // 70% common, 25% rare, 5% epic
+        case .gold: return [0.50, 0.35, 0.15]      // 50% common, 35% rare, 15% epic
+        case .diamond: return [0.30, 0.40, 0.30]   // 30% common, 40% rare, 30% epic
+        }
+    }
+}
+
+// MARK: - 数据库兼容结构
+
+/// 物品定义（数据库结构）
+struct ItemDefinitionDB: Codable {
+    let id: String
+    let name: String
+    let category: String
+    let rarity: String
+    let weight: Double?
+    let description: String?
+    let iconName: String?
+    let canStack: Bool?
+    let maxStack: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, category, rarity, weight, description
+        case iconName = "icon_name"
+        case canStack = "can_stack"
+        case maxStack = "max_stack"
+    }
+
+    /// 转换为 ItemDefinition
+    func toItemDefinition() -> ItemDefinition {
+        let cat: ItemCategory
+        switch category {
+        case "water": cat = .water
+        case "food": cat = .food
+        case "medical": cat = .medical
+        case "material": cat = .material
+        case "tool": cat = .tool
+        default: cat = .material
+        }
+
+        let rar: ItemRarity
+        switch rarity {
+        case "common": rar = .common
+        case "rare": rar = .rare
+        case "epic": rar = .epic
+        default: rar = .common
+        }
+
+        return ItemDefinition(
+            id: id,
+            name: name,
+            category: cat,
+            weight: weight ?? 0,
+            volume: 0,
+            rarity: rar,
+            description: description ?? "",
+            canStack: canStack ?? true,
+            maxStack: maxStack ?? 99,
+            hasQuality: false
+        )
+    }
+}
+
+/// 背包物品（数据库结构）
+struct InventoryItemDB: Codable {
+    let id: String
+    let userId: String
+    let itemDefinitionId: String
+    let quantity: Int
+    let quality: Int?
+    let obtainedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case itemDefinitionId = "item_definition_id"
+        case quantity, quality
+        case obtainedAt = "obtained_at"
+    }
+
+    /// 转换为 InventoryItem
+    func toInventoryItem() -> InventoryItem {
+        let qual: ItemQuality? = quality != nil ? ItemQuality(rawValue: quality!) : nil
+
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = dateFormatter.date(from: obtainedAt) ?? Date()
+
+        return InventoryItem(
+            id: id,
+            definitionId: itemDefinitionId,
+            quantity: quantity,
+            quality: qual,
+            obtainedAt: date
+        )
+    }
+}
+
+/// 探索记录（数据库结构）- 用于插入
+struct ExplorationSessionInsert: Codable {
+    let userId: String
+    let startTime: String
+    let endTime: String
+    let distanceMeters: Double
+    let durationSeconds: Int
+    let rewardTier: String
+    let itemsEarned: String  // JSON 字符串
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case startTime = "start_time"
+        case endTime = "end_time"
+        case distanceMeters = "distance_meters"
+        case durationSeconds = "duration_seconds"
+        case rewardTier = "reward_tier"
+        case itemsEarned = "items_earned"
+    }
+}
+
+/// 背包物品插入结构
+struct InventoryItemInsert: Codable {
+    let userId: String
+    let itemDefinitionId: String
+    let quantity: Int
+    let quality: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case itemDefinitionId = "item_definition_id"
+        case quantity, quality
+    }
+}
+
+/// 背包物品更新结构
+struct InventoryItemUpdate: Codable {
+    let quantity: Int
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case quantity
+        case updatedAt = "updated_at"
+    }
 }

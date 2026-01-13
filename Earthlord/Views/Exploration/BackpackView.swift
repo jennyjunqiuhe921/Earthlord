@@ -9,6 +9,11 @@
 import SwiftUI
 
 struct BackpackView: View {
+    // MARK: - Environment
+
+    /// 背包管理器
+    @EnvironmentObject var inventoryManager: InventoryManager
+
     // MARK: - State
 
     /// 搜索文本
@@ -16,9 +21,6 @@ struct BackpackView: View {
 
     /// 选中的分类（nil = 全部）
     @State private var selectedCategory: ItemCategory? = nil
-
-    /// 背包物品数据
-    @State private var inventoryItems: [InventoryItem] = MockExplorationData.mockInventoryItems
 
     /// 背包容量配置
     private let maxCapacity = 100.0  // 最大容量（单位可以是格子数或重量）
@@ -33,7 +35,7 @@ struct BackpackView: View {
 
     /// 当前使用的容量（这里简单用物品种类数量，实际应该用重量或体积）
     private var currentCapacity: Double {
-        Double(inventoryItems.count) * 8  // 假设每种物品占8个单位
+        Double(inventoryManager.inventoryItems.count) * 8  // 假设每种物品占8个单位
     }
 
     /// 容量使用百分比
@@ -59,12 +61,12 @@ struct BackpackView: View {
 
     /// 筛选后的物品列表
     private var filteredItems: [InventoryItem] {
-        var items = inventoryItems
+        var items = inventoryManager.inventoryItems
 
         // 按分类筛选
         if let category = selectedCategory {
             items = items.filter { item in
-                if let definition = MockExplorationData.getItemDefinition(by: item.definitionId) {
+                if let definition = inventoryManager.getDefinition(for: item.definitionId) {
                     return definition.category == category
                 }
                 return false
@@ -74,7 +76,7 @@ struct BackpackView: View {
         // 按搜索文本筛选
         if !searchText.isEmpty {
             items = items.filter { item in
-                if let definition = MockExplorationData.getItemDefinition(by: item.definitionId) {
+                if let definition = inventoryManager.getDefinition(for: item.definitionId) {
                     return definition.name.localizedCaseInsensitiveContains(searchText)
                 }
                 return false
@@ -114,10 +116,18 @@ struct BackpackView: View {
         .navigationTitle("背包")
         .navigationBarTitleDisplayMode(.large)
         .onAppear {
+            // 加载背包数据
+            Task {
+                try? await inventoryManager.loadInventory()
+            }
             // 启动容量动画
             withAnimation(.spring(response: 0.8, dampingFraction: 0.8).delay(0.2)) {
                 animatedCapacity = currentCapacity
             }
+        }
+        .refreshable {
+            // 下拉刷新背包数据
+            try? await inventoryManager.loadInventory()
         }
         .onChange(of: currentCapacity) { newValue in
             // 容量变化时的动画
@@ -297,7 +307,7 @@ struct BackpackView: View {
                 emptyState
             } else {
                 ForEach(filteredItems) { item in
-                    if let definition = MockExplorationData.getItemDefinition(by: item.definitionId) {
+                    if let definition = inventoryManager.getDefinition(for: item.definitionId) {
                         ItemCard(item: item, definition: definition)
                     }
                 }
@@ -346,7 +356,7 @@ struct BackpackView: View {
 
     /// 空状态图标
     private var emptyStateIcon: String {
-        if inventoryItems.isEmpty {
+        if inventoryManager.inventoryItems.isEmpty {
             return "backpack.fill"
         } else if !searchText.isEmpty {
             return "magnifyingglass.circle.fill"
@@ -357,7 +367,7 @@ struct BackpackView: View {
 
     /// 空状态标题
     private var emptyStateTitle: String {
-        if inventoryItems.isEmpty {
+        if inventoryManager.inventoryItems.isEmpty {
             return "背包空空如也"
         } else if !searchText.isEmpty {
             return "没有找到相关物品"
@@ -368,12 +378,23 @@ struct BackpackView: View {
 
     /// 空状态副标题
     private var emptyStateSubtitle: String {
-        if inventoryItems.isEmpty {
+        if inventoryManager.inventoryItems.isEmpty {
             return "去探索收集物资吧"
         } else if !searchText.isEmpty {
             return "尝试使用其他关键词或清除搜索"
         } else {
             return "切换其他分类查看物品"
+        }
+    }
+
+    // MARK: - Helper Functions
+
+    /// 格式化重量显示
+    private func formatWeight(_ grams: Double) -> String {
+        if grams >= 1000 {
+            return String(format: "%.1fkg", grams / 1000)
+        } else {
+            return String(format: "%.0fg", grams)
         }
     }
 }
@@ -462,7 +483,7 @@ struct ItemCard: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(ApocalypseTheme.textMuted)
 
-                        Text(MockExplorationData.formatWeight(definition.weight * Double(item.quantity)))
+                        Text(Self.formatWeight(definition.weight * Double(item.quantity)))
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(ApocalypseTheme.textSecondary)
                     }
@@ -567,6 +588,17 @@ struct ItemCard: View {
         print("📦 存储物品: \(definition.name) (数量: \(item.quantity))")
         // TODO: 实现存储物品逻辑
     }
+
+    // MARK: - Helper Functions
+
+    /// 格式化重量显示
+    static func formatWeight(_ grams: Double) -> String {
+        if grams >= 1000 {
+            return String(format: "%.1fkg", grams / 1000)
+        } else {
+            return String(format: "%.0fg", grams)
+        }
+    }
 }
 
 // MARK: - 稀有度徽章
@@ -642,5 +674,6 @@ struct QualityBadge: View {
 #Preview {
     NavigationView {
         BackpackView()
+            .environmentObject(InventoryManager())
     }
 }

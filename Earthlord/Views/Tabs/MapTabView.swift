@@ -22,6 +22,12 @@ struct MapTabView: View {
     /// 认证管理器（从上层注入）
     @EnvironmentObject var authManager: AuthManager
 
+    /// 探索管理器（从上层注入）
+    @EnvironmentObject var explorationManager: ExplorationManager
+
+    /// 背包管理器（从上层注入）
+    @EnvironmentObject var inventoryManager: InventoryManager
+
     /// 已加载的领地列表
     @State private var territories: [Territory] = []
 
@@ -45,9 +51,8 @@ struct MapTabView: View {
     @State private var showCollisionWarning = false
     @State private var collisionWarningLevel: WarningLevel = .safe
 
-    // MARK: - 探索功能状态
-    @State private var isExploring = false
-    @State private var showExplorationResult = false
+    // MARK: - 探索功能状态（已移至 ExplorationManager）
+    // 旧代码已删除，使用 explorationManager.state 代替
 
     // MARK: - Computed Properties
 
@@ -92,12 +97,42 @@ struct MapTabView: View {
             VStack {
                 topToolbar
 
-                // 速度警告横幅
+                // 速度警告横幅（圈地功能）
                 if let warning = locationManager.speedWarning {
                     speedWarningBanner(message: warning)
                         .padding(.horizontal)
                         .padding(.top, 8)
                         .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                // 探索超速警告横幅
+                if explorationManager.isOverSpeed {
+                    explorationSpeedWarningBanner
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                // 探索失败横幅
+                if explorationManager.state == .failed, let reason = explorationManager.failureReason {
+                    explorationFailedBanner(reason: reason)
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                // 探索错误消息横幅
+                if let errorMsg = explorationManager.errorMessage {
+                    explorationErrorBanner(message: errorMsg)
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .onAppear {
+                            // 5秒后自动清除错误消息
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                                explorationManager.errorMessage = nil
+                            }
+                        }
                 }
 
                 // 验证结果横幅
@@ -188,8 +223,15 @@ struct MapTabView: View {
             }
         }
         // 探索结果弹窗
-        .sheet(isPresented: $showExplorationResult) {
-            ExplorationResultView(result: MockExplorationData.mockExplorationResult)
+        .sheet(isPresented: $explorationManager.showResult) {
+            if let result = explorationManager.explorationResult {
+                ExplorationResultView(result: result)
+                    .environmentObject(inventoryManager)
+                    .onDisappear {
+                        // 关闭弹窗后重置状态
+                        explorationManager.resetState()
+                    }
+            }
         }
     }
 
@@ -257,21 +299,72 @@ struct MapTabView: View {
             handleExplore()
         } label: {
             HStack(spacing: 8) {
-                if isExploring {
-                    // 加载中显示转圈
+                switch explorationManager.state {
+                case .idle:
+                    // 空闲状态：显示探索按钮
+                    Image(systemName: "binoculars.fill")
+                        .font(.system(size: 16))
+                    Text("探索")
+                        .font(.system(size: 15, weight: .semibold))
+
+                case .exploring:
+                    // 探索中：显示实时数据
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "figure.walk")
+                                .font(.system(size: 12))
+                            Text(formatDistance(explorationManager.currentDistance))
+                                .font(.system(size: 13, weight: .medium))
+                        }
+                        HStack(spacing: 4) {
+                            Image(systemName: "speedometer")
+                                .font(.system(size: 11))
+                            Text(String(format: "%.1f km/h", explorationManager.currentSpeed))
+                                .font(.system(size: 12))
+                        }
+                    }
+                    Text("结束")
+                        .font(.system(size: 14, weight: .bold))
+
+                case .speedWarning:
+                    // 超速警告状态：显示倒计时
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 12))
+                            Text("超速!")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                        HStack(spacing: 4) {
+                            Image(systemName: "timer")
+                                .font(.system(size: 11))
+                            Text("\(explorationManager.speedWarningCountdown)秒")
+                                .font(.system(size: 12, weight: .bold))
+                        }
+                    }
+                    Text("结束")
+                        .font(.system(size: 14, weight: .bold))
+
+                case .processing:
+                    // 处理中：显示加载
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .scaleEffect(0.8)
+                    Text("计算中...")
+                        .font(.system(size: 14, weight: .semibold))
 
-                    Text("探索中...")
-                        .font(.system(size: 15, weight: .semibold))
-                } else {
-                    // 图标
-                    Image(systemName: "binoculars.fill")
+                case .completed:
+                    // 完成状态
+                    Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 16))
+                    Text("完成")
+                        .font(.system(size: 15, weight: .semibold))
 
-                    // 文字
-                    Text("探索")
+                case .failed:
+                    // 失败状态
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                    Text("重新探索")
                         .font(.system(size: 15, weight: .semibold))
                 }
             }
@@ -280,11 +373,45 @@ struct MapTabView: View {
             .padding(.vertical, 12)
             .background(
                 Capsule()
-                    .fill(isExploring ? Color.gray : ApocalypseTheme.primary)
+                    .fill(exploreButtonColor)
                     .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
             )
         }
-        .disabled(isExploring)
+        .disabled(explorationManager.state == .processing)
+    }
+
+    /// 探索按钮颜色
+    private var exploreButtonColor: Color {
+        switch explorationManager.state {
+        case .idle:
+            return ApocalypseTheme.primary
+        case .exploring:
+            return Color.green
+        case .speedWarning:
+            return Color.red
+        case .processing:
+            return Color.gray
+        case .completed:
+            return Color.green
+        case .failed:
+            return Color.orange
+        }
+    }
+
+    /// 格式化距离
+    private func formatDistance(_ meters: Double) -> String {
+        if meters < 1000 {
+            return String(format: "%.0fm", meters)
+        } else {
+            return String(format: "%.2fkm", meters / 1000)
+        }
+    }
+
+    /// 格式化时长
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let mins = Int(seconds) / 60
+        let secs = Int(seconds) % 60
+        return String(format: "%d:%02d", mins, secs)
     }
 
     /// 圈地按钮（开始/停止追踪）
@@ -569,15 +696,125 @@ struct MapTabView: View {
 
     /// 处理探索按钮点击
     private func handleExplore() {
-        // 设置为探索中状态
-        isExploring = true
-
-        // 模拟 1.5 秒的搜索过程
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            isExploring = false
-            // 显示探索结果弹窗
-            showExplorationResult = true
+        switch explorationManager.state {
+        case .idle, .failed:
+            // 开始探索（从空闲或失败状态）
+            explorationManager.startExploration()
+        case .exploring, .speedWarning:
+            // 结束探索（正常结束或超速警告时主动结束）
+            Task {
+                await explorationManager.stopExploration()
+            }
+        case .completed:
+            // 重置状态（关闭结果后再次点击）
+            explorationManager.resetState()
+        case .processing:
+            // 处理中，不做任何操作
+            break
         }
+    }
+
+    /// 探索超速警告横幅
+    private var explorationSpeedWarningBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 20))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("速度过快!")
+                    .font(.system(size: 15, weight: .bold))
+                Text("当前速度 \(String(format: "%.1f", explorationManager.currentSpeed)) km/h，超过 30 km/h 限制")
+                    .font(.system(size: 13))
+                if explorationManager.speedWarningCountdown > 0 {
+                    Text("请在 \(explorationManager.speedWarningCountdown) 秒内减速，否则探索将失败")
+                        .font(.system(size: 12, weight: .medium))
+                }
+            }
+
+            Spacer()
+        }
+        .foregroundColor(.white)
+        .padding()
+        .background(
+            Color.red
+                .cornerRadius(12)
+                .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
+        )
+    }
+
+    /// 探索错误消息横幅
+    private func explorationErrorBanner(message: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.system(size: 20))
+
+            Text(message)
+                .font(.system(size: 14, weight: .medium))
+
+            Spacer()
+
+            Button {
+                explorationManager.errorMessage = nil
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white.opacity(0.8))
+            }
+        }
+        .foregroundColor(.white)
+        .padding()
+        .background(
+            Color.red.opacity(0.9)
+                .cornerRadius(12)
+                .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
+        )
+    }
+
+    /// 探索失败横幅
+    private func explorationFailedBanner(reason: ExplorationFailureReason) -> some View {
+        let message: String
+        let icon: String
+
+        switch reason {
+        case .speedExceeded:
+            message = "探索失败：移动速度超过限制"
+            icon = "speedometer"
+        case .gpsError:
+            message = "探索失败：GPS信号丢失"
+            icon = "location.slash.fill"
+        case .userCancelled:
+            message = "探索已取消"
+            icon = "xmark.circle.fill"
+        }
+
+        return HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 20))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(message)
+                    .font(.system(size: 15, weight: .bold))
+                Text("已行走 \(formatDistance(explorationManager.currentDistance))，点击按钮重新开始")
+                    .font(.system(size: 13))
+            }
+
+            Spacer()
+
+            Button {
+                explorationManager.resetState()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white.opacity(0.8))
+            }
+        }
+        .foregroundColor(.white)
+        .padding()
+        .background(
+            Color.orange
+                .cornerRadius(12)
+                .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
+        )
     }
 
     /// 上传当前领地
@@ -916,4 +1153,6 @@ struct MapTabView: View {
         .environmentObject(LocationManager())
         .environmentObject(TerritoryManager())
         .environmentObject(AuthManager())
+        .environmentObject(ExplorationManager())
+        .environmentObject(InventoryManager())
 }

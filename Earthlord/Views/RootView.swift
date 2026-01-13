@@ -21,6 +21,12 @@ struct RootView: View {
     /// 领地管理器（全局共享）
     @StateObject private var territoryManager = TerritoryManager()
 
+    /// 背包管理器（全局共享）
+    @StateObject private var inventoryManager = InventoryManager()
+
+    /// 探索管理器（全局共享）
+    @StateObject private var explorationManager = ExplorationManager()
+
     /// 启动页是否完成
     @State private var splashFinished = false
 
@@ -36,7 +42,13 @@ struct RootView: View {
                     .environmentObject(authManager)
                     .environmentObject(locationManager)
                     .environmentObject(territoryManager)
+                    .environmentObject(inventoryManager)
+                    .environmentObject(explorationManager)
                     .transition(.opacity)
+                    .onAppear {
+                        // 设置探索管理器的背包管理器引用
+                        explorationManager.setInventoryManager(inventoryManager)
+                    }
             } else {
                 // 未认证 - 显示认证页面
                 AuthView()

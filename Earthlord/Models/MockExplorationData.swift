@@ -294,16 +294,11 @@ struct MockExplorationData {
         let stats = ExplorationStats(
             // 本次探索
             distanceThisSession: 2500,      // 行走 2500 米
-            areaThisSession: 50000,         // 探索 5 万平方米
             durationThisSession: 1800,      // 30 分钟（1800秒）
             itemsFoundThisSession: itemsFound,
             // 累计统计
             totalDistance: 15000,           // 累计 15000 米
-            totalArea: 250000,              // 累计 25 万平方米
-            totalDuration: 10800,           // 累计 3 小时
-            // 排名
-            distanceRank: 42,               // 距离排名第 42
-            areaRank: 38                    // 面积排名第 38
+            totalDuration: 10800            // 累计 3 小时
         )
 
         return ExplorationResult(
@@ -312,8 +307,7 @@ struct MockExplorationData {
             startTime: Date().addingTimeInterval(-1800), // 30分钟前开始
             endTime: Date(),
             stats: stats,
-            poisDiscovered: ["poi_001", "poi_004"], // 发现了超市和药店
-            achievements: []    // 暂无成就
+            rewardTier: .gold               // 金级奖励
         )
     }()
 
