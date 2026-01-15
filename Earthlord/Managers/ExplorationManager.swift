@@ -11,6 +11,7 @@ import Foundation
 import Combine
 import CoreLocation
 import Supabase
+import UIKit
 
 /// 探索状态
 enum ExplorationState: String {
@@ -69,6 +70,32 @@ class ExplorationManager: NSObject, ObservableObject {
     /// 探索失败原因
     @Published var failureReason: ExplorationFailureReason?
 
+    // MARK: - POI 相关属性
+
+    /// 附近 POI 列表
+    @Published var nearbyPOIs: [POI] = []
+
+    /// 是否显示接近 POI 弹窗
+    @Published var showPOIPopup: Bool = false
+
+    /// 当前接近的 POI
+    @Published var currentPOI: POI? = nil
+
+    /// 当前距离 POI 的距离（米）
+    @Published var currentPOIDistance: Double = 0
+
+    /// 是否显示搜刮结果
+    @Published var showScavengeResult: Bool = false
+
+    /// 搜刮获得的物品
+    @Published var scavengeItems: [ItemLoot] = []
+
+    /// 当前搜刮的 POI（用于结果显示）
+    @Published var scavengedPOI: POI? = nil
+
+    /// POI 搜索状态
+    @Published var isSearchingPOI: Bool = false
+
     // MARK: - Private Properties
 
     /// 位置管理器
@@ -94,6 +121,12 @@ class ExplorationManager: NSObject, ObservableObject {
 
     /// 背包管理器引用
     private weak var inventoryManager: InventoryManager?
+
+    /// 玩家位置管理器引用
+    private weak var playerLocationManager: PlayerLocationManager?
+
+    /// 当前玩家密度等级
+    @Published var playerDensityLevel: PlayerDensityLevel = .solitary
 
     // MARK: - 速度限制常量
 
@@ -125,6 +158,17 @@ class ExplorationManager: NSObject, ObservableObject {
 
     /// 最小移动距离（米）- 过滤GPS噪声
     private let minMovementDistance: Double = 2.0
+
+    // MARK: - POI 常量
+
+    /// POI 搜索半径（米）
+    private let poiSearchRadius: CLLocationDistance = 1000
+
+    /// POI 触发距离（米）
+    private let poiTriggerDistance: CLLocationDistance = 50
+
+    /// 已搜刮的 POI ID 集合（防止重复搜刮）
+    private var scavengedPOIIds: Set<String> = []
 
     // MARK: - Initialization
 
@@ -163,6 +207,12 @@ class ExplorationManager: NSObject, ObservableObject {
     func setInventoryManager(_ manager: InventoryManager) {
         self.inventoryManager = manager
         log("InventoryManager 已设置")
+    }
+
+    /// 设置玩家位置管理器引用
+    func setPlayerLocationManager(_ manager: PlayerLocationManager) {
+        self.playerLocationManager = manager
+        log("PlayerLocationManager 已设置")
     }
 
     /// 开始探索
@@ -211,6 +261,16 @@ class ExplorationManager: NSObject, ObservableObject {
         failureReason = nil
         showResult = false
 
+        // 重置 POI 相关状态
+        nearbyPOIs = []
+        showPOIPopup = false
+        currentPOI = nil
+        currentPOIDistance = 0
+        showScavengeResult = false
+        scavengeItems = []
+        scavengedPOI = nil
+        scavengedPOIIds = []
+
         // 记录开始时间
         startTime = Date()
         lastStateChangeTime = now
@@ -225,6 +285,17 @@ class ExplorationManager: NSObject, ObservableObject {
         // 开始计时器
         startDurationTimer()
         log("计时器已启动")
+
+        // 启动玩家位置上报服务
+        if let location = locationManager.location?.coordinate {
+            playerLocationManager?.startLocationService(at: location)
+            log("玩家位置上报服务已启动")
+        }
+
+        // 搜索附近 POI
+        Task {
+            await searchNearbyPOIs()
+        }
     }
 
     /// 结束探索（正常结束）
@@ -262,6 +333,18 @@ class ExplorationManager: NSObject, ObservableObject {
         locationManager.stopUpdatingLocation()
         log("GPS追踪已停止")
 
+        // 清除地理围栏
+        clearGeofences()
+
+        // 停止玩家位置上报服务
+        playerLocationManager?.stopLocationService()
+        log("玩家位置上报服务已停止")
+
+        // 清除 POI 相关状态
+        nearbyPOIs = []
+        showPOIPopup = false
+        currentPOI = nil
+
         // 更新状态
         state = .processing
         log("开始处理探索结果...")
@@ -279,6 +362,17 @@ class ExplorationManager: NSObject, ObservableObject {
 
         // 停止GPS追踪
         locationManager.stopUpdatingLocation()
+
+        // 清除地理围栏
+        clearGeofences()
+
+        // 停止玩家位置上报服务
+        playerLocationManager?.stopLocationService()
+
+        // 清除 POI 相关状态
+        nearbyPOIs = []
+        showPOIPopup = false
+        currentPOI = nil
 
         // 更新状态
         state = .failed
@@ -526,14 +620,39 @@ class ExplorationManager: NSObject, ObservableObject {
                 return
             }
 
-            // 计算速度 (m/s -> km/h)
-            let speedMs = distance / timeInterval
-            let speedKmh = speedMs * 3.6
+            // ⭐ 优先使用系统提供的速度（更可靠）
+            var speedKmh: Double
+            if location.speed >= 0 {
+                // 系统速度有效（非负值表示有效）
+                speedKmh = location.speed * 3.6  // m/s -> km/h
+                log("使用系统速度: \(String(format: "%.1f", speedKmh))km/h")
+            } else {
+                // 系统速度无效，自己计算
+                let speedMs = distance / timeInterval
+                speedKmh = speedMs * 3.6
+                log("计算速度: \(String(format: "%.1f", speedKmh))km/h (系统速度无效)")
+            }
+
+            // ⭐ GPS 跳点检测（速度超过 50 km/h 判定为跳点，忽略此位置）
+            let gpsJumpThreshold: Double = 50.0  // km/h，人类跑步极限约 45 km/h
+            if speedKmh > gpsJumpThreshold {
+                log("忽略: GPS跳点 (速度=\(String(format: "%.1f", speedKmh))km/h > \(gpsJumpThreshold)km/h)", level: "WARN")
+                // 不更新 lastValidLocation，等待下一个正常的位置点
+                return
+            }
+
+            // 检查是否跳跃过大（可能是GPS漂移）
+            if distance > maxJumpDistance {
+                log("忽略: 跳跃过大 (\(String(format: "%.0f", distance))m > \(String(format: "%.0f", maxJumpDistance))m)", level: "WARN")
+                return
+            }
+
+            // 更新当前速度
             currentSpeed = speedKmh
 
             log("移动: 距离=\(String(format: "%.1f", distance))m, 时间=\(String(format: "%.1f", timeInterval))s, 速度=\(String(format: "%.1f", speedKmh))km/h")
 
-            // 检查速度
+            // 检查速度（真正的超速检测）
             if speedKmh > maxSpeedKmh {
                 log("超速检测: \(String(format: "%.1f", speedKmh))km/h > \(maxSpeedKmh)km/h", level: "WARN")
                 isOverSpeed = true
@@ -553,12 +672,6 @@ class ExplorationManager: NSObject, ObservableObject {
                 }
             }
 
-            // 检查是否跳跃过大（可能是GPS漂移）
-            if distance > maxJumpDistance {
-                log("忽略: 跳跃过大 (\(String(format: "%.0f", distance))m > \(String(format: "%.0f", maxJumpDistance))m)", level: "WARN")
-                return
-            }
-
             // 过滤GPS噪声（太小的移动）
             if distance < minMovementDistance {
                 log("忽略: 移动太小 (\(String(format: "%.2f", distance))m < \(minMovementDistance)m)")
@@ -575,6 +688,50 @@ class ExplorationManager: NSObject, ObservableObject {
         // 记录位置
         explorationPath.append(location)
         lastValidLocation = location
+
+        // 通知玩家位置管理器（用于上报和密度检测）
+        playerLocationManager?.handleLocationUpdate(location.coordinate)
+
+        // ⭐ POI 距离检测（比地理围栏更可靠）
+        checkPOIProximity(currentLocation: location)
+    }
+
+    /// 检查是否接近任何 POI
+    private func checkPOIProximity(currentLocation: CLLocation) {
+        // 检查是否正在显示弹窗
+        guard !showPOIPopup && !showScavengeResult else { return }
+
+        // ⭐ 关键修复：将用户坐标从 WGS-84 转换为 GCJ-02
+        // MapKit 返回的 POI 坐标是 GCJ-02，GPS 返回的用户位置是 WGS-84
+        // 在中国必须转换后才能正确计算距离
+        let userGcj02 = CoordinateConverter.wgs84ToGcj02(currentLocation.coordinate)
+        let userGcj02Location = CLLocation(latitude: userGcj02.latitude, longitude: userGcj02.longitude)
+
+        // 遍历所有 POI，检查距离
+        for poi in nearbyPOIs {
+            // 跳过已搜刮的 POI
+            guard !scavengedPOIIds.contains(poi.id) else { continue }
+
+            // POI 坐标已经是 GCJ-02，直接使用
+            let poiLocation = CLLocation(latitude: poi.coordinate.latitude, longitude: poi.coordinate.longitude)
+            let distance = userGcj02Location.distance(from: poiLocation)
+
+            // 如果距离小于触发阈值，触发弹窗
+            if distance <= poiTriggerDistance {
+                log("距离检测触发: \(poi.name)，距离=\(String(format: "%.1f", distance))m")
+                currentPOI = poi
+                currentPOIDistance = distance
+                showPOIPopup = true
+
+                // 触发震动
+                let generator = UINotificationFeedbackGenerator()
+                generator.prepare()
+                generator.notificationOccurred(.warning)
+
+                // 只触发一个 POI
+                break
+            }
+        }
     }
 
     /// 验证位置是否有效
@@ -590,6 +747,251 @@ class ExplorationManager: NSObject, ObservableObject {
         }
 
         return true
+    }
+
+    // MARK: - POI 搜索方法
+
+    /// 搜索附近 POI
+    private func searchNearbyPOIs() async {
+        guard let location = lastValidLocation?.coordinate ?? locationManager.location?.coordinate else {
+            log("无法获取当前位置，延迟搜索 POI", level: "WARN")
+            // 延迟 2 秒后重试
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            if state == .exploring {
+                await searchNearbyPOIs()
+            }
+            return
+        }
+
+        isSearchingPOI = true
+        log("开始搜索附近 POI，位置: (\(String(format: "%.4f", location.latitude)), \(String(format: "%.4f", location.longitude)))")
+
+        // 先查询附近玩家密度
+        if let manager = playerLocationManager {
+            await manager.refreshDensity(at: location)
+            playerDensityLevel = manager.currentDensityLevel
+            log("玩家密度: \(playerDensityLevel.rawValue)（附近 \(manager.nearbyPlayerCount) 人）")
+        }
+
+        // 根据密度等级确定 POI 数量上限
+        let maxPOIs = playerDensityLevel.poiLimit
+        log("根据密度限制 POI 上限: \(maxPOIs) 个")
+
+        // 搜索 POI（传入数量限制）
+        let pois = await POISearchManager.shared.searchNearbyPOIs(
+            center: location,
+            radius: poiSearchRadius,
+            maxResults: maxPOIs
+        )
+
+        isSearchingPOI = false
+        nearbyPOIs = pois
+
+        log("POI 搜索完成，找到 \(pois.count) 个 POI")
+
+        // 设置地理围栏
+        if !pois.isEmpty {
+            setupGeofences()
+        }
+    }
+
+    /// 设置地理围栏
+    private func setupGeofences() {
+        // 清除旧的围栏
+        clearGeofences()
+
+        guard !nearbyPOIs.isEmpty else { return }
+
+        log("设置 \(nearbyPOIs.count) 个地理围栏")
+
+        for poi in nearbyPOIs {
+            let region = CLCircularRegion(
+                center: poi.coordinate,
+                radius: poiTriggerDistance,
+                identifier: poi.id
+            )
+            region.notifyOnEntry = true
+            region.notifyOnExit = false
+
+            locationManager.startMonitoring(for: region)
+            log("围栏已设置: \(poi.name) (ID: \(poi.id))")
+        }
+    }
+
+    /// 清除所有地理围栏
+    private func clearGeofences() {
+        for region in locationManager.monitoredRegions {
+            locationManager.stopMonitoring(for: region)
+        }
+        log("已清除 \(locationManager.monitoredRegions.count) 个地理围栏")
+    }
+
+    /// 处理进入 POI 范围
+    func handlePOIEntry(regionId: String) {
+        // 检查是否已搜刮过
+        guard !scavengedPOIIds.contains(regionId) else {
+            log("POI \(regionId) 已被搜刮，忽略")
+            return
+        }
+
+        // 查找对应的 POI
+        guard let poi = nearbyPOIs.first(where: { $0.id == regionId }) else {
+            log("未找到 POI: \(regionId)", level: "WARN")
+            return
+        }
+
+        // 检查是否正在显示其他弹窗
+        guard !showPOIPopup && !showScavengeResult else {
+            log("正在显示其他弹窗，忽略 POI 进入事件")
+            return
+        }
+
+        log("进入 POI 范围: \(poi.name)")
+
+        // 计算当前距离（需要坐标转换）
+        if let currentLocation = lastValidLocation {
+            // 将用户坐标从 WGS-84 转换为 GCJ-02
+            let userGcj02 = CoordinateConverter.wgs84ToGcj02(currentLocation.coordinate)
+            let userGcj02Location = CLLocation(latitude: userGcj02.latitude, longitude: userGcj02.longitude)
+            let poiLocation = CLLocation(latitude: poi.coordinate.latitude, longitude: poi.coordinate.longitude)
+            currentPOIDistance = userGcj02Location.distance(from: poiLocation)
+        } else {
+            currentPOIDistance = poiTriggerDistance
+        }
+
+        // 显示弹窗
+        currentPOI = poi
+        showPOIPopup = true
+
+        // 触发震动
+        let generator = UINotificationFeedbackGenerator()
+        generator.prepare()
+        generator.notificationOccurred(.warning)
+    }
+
+    /// 关闭 POI 弹窗
+    func dismissPOIPopup() {
+        showPOIPopup = false
+        currentPOI = nil
+        log("关闭 POI 弹窗")
+    }
+
+    /// 执行搜刮
+    func scavengePOI() async {
+        guard let poi = currentPOI else {
+            log("无当前 POI，无法搜刮", level: "ERROR")
+            return
+        }
+
+        log("开始搜刮: \(poi.name)")
+
+        // 标记为已搜刮
+        scavengedPOIIds.insert(poi.id)
+
+        // 更新 POI 状态
+        if let index = nearbyPOIs.firstIndex(where: { $0.id == poi.id }) {
+            nearbyPOIs[index].status = .looted
+            nearbyPOIs[index].hasLoot = false
+        }
+
+        // 关闭接近弹窗
+        showPOIPopup = false
+
+        // 生成随机物品
+        let items = await generateScavengeItems()
+
+        // 添加到背包
+        if !items.isEmpty {
+            do {
+                try await inventoryManager?.addItems(items)
+                log("搜刮物品已添加到背包: \(items.count) 件")
+            } catch {
+                log("添加搜刮物品到背包失败: \(error.localizedDescription)", level: "ERROR")
+            }
+        }
+
+        // 保存搜刮的 POI 和物品
+        scavengedPOI = poi
+        scavengeItems = items
+
+        // 显示搜刮结果
+        showScavengeResult = true
+
+        log("搜刮完成: \(poi.name)，获得 \(items.count) 件物品")
+    }
+
+    /// 生成搜刮物品
+    private func generateScavengeItems() async -> [ItemLoot] {
+        // 获取物品定义
+        let definitions: [ItemDefinition]
+        if let manager = inventoryManager {
+            if manager.itemDefinitions.isEmpty {
+                try? await manager.loadItemDefinitions()
+            }
+            definitions = manager.getAllDefinitions()
+        } else {
+            return []
+        }
+
+        guard !definitions.isEmpty else {
+            log("物品定义为空，无法生成搜刮物品", level: "WARN")
+            return []
+        }
+
+        // 随机生成 1-3 件物品
+        let itemCount = Int.random(in: 1...3)
+        var items: [ItemLoot] = []
+
+        // 按稀有度分类
+        let commonItems = definitions.filter { $0.rarity == .common }
+        let rareItems = definitions.filter { $0.rarity == .rare }
+        let epicItems = definitions.filter { $0.rarity == .epic }
+
+        for _ in 0..<itemCount {
+            let roll = Double.random(in: 0..<1)
+
+            var selectedItem: ItemDefinition?
+
+            // 70% common, 25% rare, 5% epic
+            if roll < 0.70 {
+                selectedItem = commonItems.randomElement()
+            } else if roll < 0.95 {
+                selectedItem = rareItems.randomElement() ?? commonItems.randomElement()
+            } else {
+                selectedItem = epicItems.randomElement() ?? rareItems.randomElement() ?? commonItems.randomElement()
+            }
+
+            if let item = selectedItem {
+                // 检查是否已有这个物品
+                if let existingIndex = items.firstIndex(where: { $0.definitionId == item.id }) {
+                    let existing = items[existingIndex]
+                    items[existingIndex] = ItemLoot(
+                        id: existing.id,
+                        definitionId: existing.definitionId,
+                        quantity: existing.quantity + 1,
+                        quality: existing.quality
+                    )
+                } else {
+                    items.append(ItemLoot(
+                        id: UUID().uuidString,
+                        definitionId: item.id,
+                        quantity: 1,
+                        quality: nil
+                    ))
+                }
+            }
+        }
+
+        return items
+    }
+
+    /// 关闭搜刮结果弹窗
+    func dismissScavengeResult() {
+        showScavengeResult = false
+        scavengeItems = []
+        scavengedPOI = nil
+        currentPOI = nil
+        log("关闭搜刮结果弹窗")
     }
 }
 
@@ -643,6 +1045,29 @@ extension ExplorationManager: CLLocationManagerDelegate {
             @unknown default:
                 break
             }
+        }
+    }
+
+    // MARK: - 地理围栏回调
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
+        Task { @MainActor in
+            guard state == .exploring || state == .speedWarning else { return }
+            log("进入地理围栏: \(region.identifier)")
+            handlePOIEntry(regionId: region.identifier)
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
+        Task { @MainActor in
+            log("离开地理围栏: \(region.identifier)")
+            // 目前不处理离开事件
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, monitoringDidFailFor region: CLRegion?, withError error: Error) {
+        Task { @MainActor in
+            log("地理围栏监控失败: \(region?.identifier ?? "unknown") - \(error.localizedDescription)", level: "ERROR")
         }
     }
 }

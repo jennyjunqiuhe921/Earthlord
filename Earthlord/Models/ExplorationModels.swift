@@ -404,3 +404,77 @@ struct InventoryItemUpdate: Codable {
         case updatedAt = "updated_at"
     }
 }
+
+// MARK: - 玩家密度等级
+
+/// 玩家密度等级（根据附近玩家数量动态调整 POI 显示）
+enum PlayerDensityLevel: String, CaseIterable {
+    case solitary = "独行者"    // 0人
+    case low = "低密度"         // 1-5人
+    case medium = "中密度"      // 6-20人
+    case high = "高密度"        // 20人以上
+
+    /// 根据附近玩家数量确定密度等级
+    static func from(nearbyCount: Int) -> PlayerDensityLevel {
+        switch nearbyCount {
+        case 0:
+            return .solitary
+        case 1...5:
+            return .low
+        case 6...20:
+            return .medium
+        default:
+            return .high
+        }
+    }
+
+    /// 该密度等级对应的 POI 数量上限
+    var poiLimit: Int {
+        switch self {
+        case .solitary: return 1
+        case .low: return 3
+        case .medium: return 6
+        case .high: return 20
+        }
+    }
+
+    /// 显示图标
+    var icon: String {
+        switch self {
+        case .solitary: return "person"
+        case .low: return "person.2"
+        case .medium: return "person.3"
+        case .high: return "person.3.fill"
+        }
+    }
+}
+
+// MARK: - 玩家位置上报结构
+
+/// 玩家位置上报数据（用于 Supabase upsert）
+struct PlayerLocationUpsert: Encodable {
+    let userId: String
+    let latitude: Double
+    let longitude: Double
+    let updatedAt: String
+    let isOnline: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case latitude
+        case longitude
+        case updatedAt = "updated_at"
+        case isOnline = "is_online"
+    }
+}
+
+/// 玩家在线状态更新结构（用于 update）
+struct PlayerOnlineStatusUpdate: Encodable {
+    let isOnline: Bool
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case isOnline = "is_online"
+        case updatedAt = "updated_at"
+    }
+}

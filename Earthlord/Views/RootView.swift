@@ -27,6 +27,9 @@ struct RootView: View {
     /// 探索管理器（全局共享）
     @StateObject private var explorationManager = ExplorationManager()
 
+    /// 玩家位置管理器（全局共享）
+    @StateObject private var playerLocationManager = PlayerLocationManager()
+
     /// 启动页是否完成
     @State private var splashFinished = false
 
@@ -44,10 +47,13 @@ struct RootView: View {
                     .environmentObject(territoryManager)
                     .environmentObject(inventoryManager)
                     .environmentObject(explorationManager)
+                    .environmentObject(playerLocationManager)
                     .transition(.opacity)
                     .onAppear {
                         // 设置探索管理器的背包管理器引用
                         explorationManager.setInventoryManager(inventoryManager)
+                        // 设置探索管理器的玩家位置管理器引用
+                        explorationManager.setPlayerLocationManager(playerLocationManager)
                     }
             } else {
                 // 未认证 - 显示认证页面

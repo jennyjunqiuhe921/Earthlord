@@ -80,7 +80,8 @@ struct MapTabView: View {
                     isTracking: locationManager.isTracking,
                     isPathClosed: locationManager.isPathClosed,
                     territories: territories,
-                    currentUserId: authManager.currentUser?.id.uuidString
+                    currentUserId: authManager.currentUser?.id.uuidString,
+                    nearbyPOIs: explorationManager.nearbyPOIs
                 )
                 .ignoresSafeArea()
                 .onAppear {
@@ -231,6 +232,38 @@ struct MapTabView: View {
                         // 关闭弹窗后重置状态
                         explorationManager.resetState()
                     }
+            }
+        }
+        // POI 接近弹窗（从底部滑出）
+        .overlay(alignment: .bottom) {
+            if explorationManager.showPOIPopup, let poi = explorationManager.currentPOI {
+                POIProximityPopup(
+                    poi: poi,
+                    distance: explorationManager.currentPOIDistance,
+                    onScavenge: {
+                        Task {
+                            await explorationManager.scavengePOI()
+                        }
+                    },
+                    onDismiss: {
+                        explorationManager.dismissPOIPopup()
+                    }
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: explorationManager.showPOIPopup)
+            }
+        }
+        // 搜刮结果弹窗（全屏）
+        .fullScreenCover(isPresented: $explorationManager.showScavengeResult) {
+            if let poi = explorationManager.scavengedPOI {
+                ScavengeResultView(
+                    poi: poi,
+                    items: explorationManager.scavengeItems,
+                    onDismiss: {
+                        explorationManager.dismissScavengeResult()
+                    }
+                )
+                .environmentObject(inventoryManager)
             }
         }
     }

@@ -173,7 +173,6 @@ class LocationManager: NSObject, ObservableObject {
         }
 
         print("✅ 开始路径追踪")
-        TerritoryLogger.shared.log("开始圈地追踪", type: .info)
     }
 
     /// 停止路径追踪
@@ -194,7 +193,6 @@ class LocationManager: NSObject, ObservableObject {
         pathUpdateVersion = 0
 
         print("⏹️ 停止路径追踪，所有状态已重置")
-        TerritoryLogger.shared.log("停止追踪，所有状态已重置", type: .info)
     }
 
     /// 清除路径
@@ -222,7 +220,6 @@ class LocationManager: NSObject, ObservableObject {
             pathUpdateVersion += 1
             lastLocationTimestamp = Date()
             print("📍 记录第 1 个路径点")
-            TerritoryLogger.shared.log("记录第 1 个点", type: .info)
             return
         }
 
@@ -239,7 +236,6 @@ class LocationManager: NSObject, ObservableObject {
             pathUpdateVersion += 1
             lastLocationTimestamp = Date()
             print("📍 记录第 \(pathCoordinates.count) 个路径点，距离上个点 \(String(format: "%.1f", distance)) 米")
-            TerritoryLogger.shared.log("记录第 \(pathCoordinates.count) 个点，距上点 \(String(format: "%.1f", distance))m", type: .info)
 
             // ⭐ 记录新点后检测是否闭环
             checkPathClosure()
@@ -273,7 +269,6 @@ class LocationManager: NSObject, ObservableObject {
             isPathClosed = true
             pathUpdateVersion += 1  // 触发 UI 更新
             print("✅ 闭环检测成功！距离起点 \(String(format: "%.1f", distance)) 米")
-            TerritoryLogger.shared.log("闭环成功！距起点 \(String(format: "%.1f", distance))m", type: .success)
 
             // ⭐ 闭环成功后，立即进行领地验证
             let validationResult = validateTerritory()
@@ -290,7 +285,6 @@ class LocationManager: NSObject, ObservableObject {
             }
         } else {
             print("⚪️ 闭环检测：距离起点 \(String(format: "%.1f", distance)) 米（需 ≤ \(closureDistanceThreshold) 米）")
-            TerritoryLogger.shared.log("距起点 \(String(format: "%.1f", distance))m (需≤30m)", type: .info)
         }
     }
 
@@ -437,13 +431,13 @@ class LocationManager: NSObject, ObservableObject {
 
                 // 检测线段是否相交
                 if segmentsIntersect(p1: p1, p2: p2, p3: p3, p4: p4) {
-                    TerritoryLogger.shared.log("自交检测: 线段\(i)-\(i+1) 与 线段\(j)-\(j+1) 相交", type: .error)
+                    print("❌ 自交检测: 线段\(i)-\(i+1) 与 线段\(j)-\(j+1) 相交")
                     return true
                 }
             }
         }
 
-        TerritoryLogger.shared.log("自交检测: 无交叉 ✓", type: .info)
+        print("✅ 自交检测: 无交叉")
         return false
     }
 
@@ -452,32 +446,30 @@ class LocationManager: NSObject, ObservableObject {
     /// 综合验证领地是否符合规则
     /// - Returns: (isValid: 验证是否通过, errorMessage: 错误信息)
     func validateTerritory() -> (isValid: Bool, errorMessage: String?) {
-        TerritoryLogger.shared.log("开始领地验证", type: .info)
+        print("🔍 开始领地验证")
 
         // 1. 点数检查
         let pointCount = pathCoordinates.count
         if pointCount < minimumPathPoints {
             let error = "点数不足: \(pointCount)个点 (需≥\(minimumPathPoints)个)"
-            TerritoryLogger.shared.log("点数检查: \(error)", type: .error)
-            TerritoryLogger.shared.log("领地验证失败", type: .error)
+            print("❌ 点数检查失败: \(error)")
             return (false, error)
         }
-        TerritoryLogger.shared.log("点数检查: \(pointCount)个点 ✓", type: .info)
+        print("✓ 点数检查: \(pointCount)个点")
 
         // 2. 距离检查
         let totalDistance = calculateTotalPathDistance()
         if totalDistance < minimumTotalDistance {
             let error = "距离不足: \(String(format: "%.0f", totalDistance))m (需≥\(String(format: "%.0f", minimumTotalDistance))m)"
-            TerritoryLogger.shared.log("距离检查: \(error)", type: .error)
-            TerritoryLogger.shared.log("领地验证失败", type: .error)
+            print("❌ 距离检查失败: \(error)")
             return (false, error)
         }
-        TerritoryLogger.shared.log("距离检查: \(String(format: "%.0f", totalDistance))m ✓", type: .info)
+        print("✓ 距离检查: \(String(format: "%.0f", totalDistance))m")
 
         // 3. 自交检测
         if hasPathSelfIntersection() {
             let error = "轨迹自相交，请勿画8字形"
-            TerritoryLogger.shared.log("领地验证失败", type: .error)
+            print("❌ 自交检测失败")
             return (false, error)
         }
         // hasPathSelfIntersection 内部已经记录了日志
@@ -486,14 +478,13 @@ class LocationManager: NSObject, ObservableObject {
         let area = calculatePolygonArea()
         if area < minimumEnclosedArea {
             let error = "面积不足: \(String(format: "%.0f", area))m² (需≥\(String(format: "%.0f", minimumEnclosedArea))m²)"
-            TerritoryLogger.shared.log("面积检查: \(error)", type: .error)
-            TerritoryLogger.shared.log("领地验证失败", type: .error)
+            print("❌ 面积检查失败: \(error)")
             return (false, error)
         }
-        TerritoryLogger.shared.log("面积检查: \(String(format: "%.0f", area))m² ✓", type: .info)
+        print("✓ 面积检查: \(String(format: "%.0f", area))m²")
 
         // 验证通过
-        TerritoryLogger.shared.log("领地验证通过！面积: \(String(format: "%.0f", area))m²", type: .success)
+        print("✅ 领地验证通过！面积: \(String(format: "%.0f", area))m²")
         return (true, nil)
     }
 
@@ -520,9 +511,26 @@ class LocationManager: NSObject, ObservableObject {
         // 避免除以零
         guard timeInterval > 0 else { return true }
 
-        // 计算速度（km/h）
-        let speedMps = distance / timeInterval  // 米/秒
-        let speedKmh = speedMps * 3.6            // 转换为 km/h
+        // ⭐ 优先使用系统提供的速度（更可靠）
+        var speedKmh: Double
+        if newLocation.speed >= 0 {
+            // 系统速度有效（非负值表示有效）
+            speedKmh = newLocation.speed * 3.6  // m/s -> km/h
+            print("📍 使用系统速度: \(String(format: "%.1f", speedKmh)) km/h")
+        } else {
+            // 系统速度无效，自己计算
+            let speedMps = distance / timeInterval
+            speedKmh = speedMps * 3.6
+            print("📍 计算速度: \(String(format: "%.1f", speedKmh)) km/h (系统速度无效)")
+        }
+
+        // ⭐ GPS 跳点检测（速度超过 50 km/h 判定为跳点，忽略此位置）
+        let gpsJumpThreshold: Double = 50.0  // km/h，人类跑步极限约 45 km/h
+        if speedKmh > gpsJumpThreshold {
+            print("🔄 忽略 GPS 跳点: 速度=\(String(format: "%.1f", speedKmh)) km/h")
+            // 返回 true 但不更新位置（在调用方处理）
+            return true  // 不触发超速警告，但需要在调用方忽略此位置
+        }
 
         // 速度检测
         if speedKmh > 30 {
@@ -530,7 +538,6 @@ class LocationManager: NSObject, ObservableObject {
             speedWarning = "速度过快（\(String(format: "%.1f", speedKmh)) km/h），已暂停追踪"
             isOverSpeed = true
             print("🚫 严重超速（\(String(format: "%.1f", speedKmh)) km/h），已暂停追踪")
-            TerritoryLogger.shared.log("超速 \(String(format: "%.1f", speedKmh)) km/h，已停止追踪", type: .error)
             stopPathTracking()
             return false
         } else if speedKmh > 15 {
@@ -538,7 +545,6 @@ class LocationManager: NSObject, ObservableObject {
             speedWarning = "移动速度较快（\(String(format: "%.1f", speedKmh)) km/h），请步行圈地"
             isOverSpeed = true
             print("⚠️ 速度警告：\(String(format: "%.1f", speedKmh)) km/h")
-            TerritoryLogger.shared.log("速度较快 \(String(format: "%.1f", speedKmh)) km/h", type: .warning)
 
             // 3 秒后自动清除警告
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in

@@ -40,6 +40,9 @@ struct MapViewRepresentable: UIViewRepresentable {
     /// 当前用户 ID
     var currentUserId: String?
 
+    /// 附近的 POI 列表
+    var nearbyPOIs: [POI]
+
     // MARK: - UIViewRepresentable Methods
 
     /// 创建地图视图
@@ -74,6 +77,9 @@ struct MapViewRepresentable: UIViewRepresentable {
 
         // 更新领地显示
         context.coordinator.drawTerritories(on: uiView, territories: territories, currentUserId: currentUserId)
+
+        // 更新 POI 标记
+        context.coordinator.updatePOIAnnotations(on: uiView, pois: nearbyPOIs)
     }
 
     /// 创建协调器（负责处理地图回调）
@@ -164,6 +170,155 @@ struct MapViewRepresentable: UIViewRepresentable {
         /// 地图加载完成时调用
         func mapViewDidFinishLoadingMap(_ mapView: MKMapView) {
             print("✅ 地图加载完成")
+        }
+
+        // MARK: - POI Annotation Methods
+
+        /// 更新 POI 标记
+        func updatePOIAnnotations(on mapView: MKMapView, pois: [POI]) {
+            // 获取当前的 POI 标记
+            let existingAnnotations = mapView.annotations.compactMap { $0 as? POIAnnotation }
+            let existingIds = Set(existingAnnotations.map { $0.poi.id })
+            let newIds = Set(pois.map { $0.id })
+
+            // 移除不再存在的标记
+            let toRemove = existingAnnotations.filter { !newIds.contains($0.poi.id) }
+            mapView.removeAnnotations(toRemove)
+
+            // 添加新的标记
+            for poi in pois where !existingIds.contains(poi.id) {
+                // 注意：Apple Maps 在中国返回的 POI 坐标已经是 GCJ-02，不需要再转换
+                let annotation = POIAnnotation(poi: poi, coordinate: poi.coordinate)
+                mapView.addAnnotation(annotation)
+            }
+
+            // 更新已有标记的状态
+            for annotation in existingAnnotations {
+                if let updatedPOI = pois.first(where: { $0.id == annotation.poi.id }) {
+                    annotation.poi = updatedPOI
+                }
+            }
+        }
+
+        /// 提供 POI 标记视图
+        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            // 不处理用户位置标记
+            if annotation is MKUserLocation {
+                return nil
+            }
+
+            // 处理 POI 标记
+            if let poiAnnotation = annotation as? POIAnnotation {
+                let identifier = "POIAnnotation"
+                var view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
+
+                if view == nil {
+                    view = MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+                    view?.canShowCallout = false  // 不显示气泡，使用自定义弹窗
+                } else {
+                    view?.annotation = annotation
+                    // 移除旧的名称标签
+                    view?.subviews.forEach { $0.removeFromSuperview() }
+                }
+
+                // 配置 POI 标记外观
+                view?.image = createPOIMarkerImage(for: poiAnnotation.poi)
+                view?.centerOffset = CGPoint(x: 0, y: -20)  // 向上偏移使标记底部对齐坐标
+
+                // 添加名称标签
+                if let view = view {
+                    let nameLabel = createPOINameLabel(for: poiAnnotation.poi)
+                    nameLabel.center = CGPoint(x: view.bounds.midX, y: view.bounds.maxY + 12)
+                    view.addSubview(nameLabel)
+                    view.clipsToBounds = false
+                }
+
+                return view
+            }
+
+            return nil
+        }
+
+        /// 创建 POI 名称标签
+        private func createPOINameLabel(for poi: POI) -> UILabel {
+            let label = UILabel()
+            label.text = poi.name
+            label.font = UIFont.systemFont(ofSize: 11, weight: .semibold)
+            label.textColor = .white
+            label.textAlignment = .center
+            label.backgroundColor = UIColor.black.withAlphaComponent(0.7)
+            label.layer.cornerRadius = 4
+            label.layer.masksToBounds = true
+            label.numberOfLines = 0  // 不限制行数，完整显示
+            label.lineBreakMode = .byWordWrapping
+
+            // 计算标签大小
+            let maxWidth: CGFloat = 280  // 增加最大宽度以显示完整名称
+            let padding: CGFloat = 8
+            let size = label.sizeThatFits(CGSize(width: maxWidth - padding * 2, height: .greatestFiniteMagnitude))
+            let labelWidth = min(size.width + padding * 2, maxWidth)
+            let labelHeight = size.height + 6
+
+            label.frame = CGRect(x: 0, y: 0, width: labelWidth, height: labelHeight)
+
+            return label
+        }
+
+        /// 创建 POI 标记图片
+        private func createPOIMarkerImage(for poi: POI) -> UIImage {
+            let size = CGSize(width: 44, height: 44)
+            let renderer = UIGraphicsImageRenderer(size: size)
+
+            return renderer.image { context in
+                let rect = CGRect(origin: .zero, size: size)
+
+                // 根据 POI 状态设置颜色
+                let color: UIColor
+                if poi.status == .looted {
+                    color = .gray
+                } else {
+                    switch poi.type {
+                    case .supermarket:
+                        color = .systemGreen
+                    case .hospital:
+                        color = .systemRed
+                    case .pharmacy:
+                        color = .systemPurple
+                    case .gasStation:
+                        color = .systemOrange
+                    case .restaurant:
+                        color = .systemYellow
+                    default:
+                        color = .systemBlue
+                    }
+                }
+
+                // 绘制圆形背景
+                let circlePath = UIBezierPath(ovalIn: rect.insetBy(dx: 2, dy: 2))
+                color.setFill()
+                circlePath.fill()
+
+                // 绘制白色边框
+                UIColor.white.setStroke()
+                circlePath.lineWidth = 2
+                circlePath.stroke()
+
+                // 绘制图标
+                let iconName = poi.iconName
+                if let iconImage = UIImage(systemName: iconName)?
+                    .withConfiguration(UIImage.SymbolConfiguration(pointSize: 20, weight: .semibold))
+                    .withTintColor(.white, renderingMode: .alwaysOriginal) {
+
+                    let iconSize = iconImage.size
+                    let iconRect = CGRect(
+                        x: (size.width - iconSize.width) / 2,
+                        y: (size.height - iconSize.height) / 2,
+                        width: iconSize.width,
+                        height: iconSize.height
+                    )
+                    iconImage.draw(in: iconRect)
+                }
+            }
         }
 
         // MARK: - Territory Drawing Methods
@@ -271,5 +426,33 @@ struct MapViewRepresentable: UIViewRepresentable {
 
             return MKOverlayRenderer(overlay: overlay)
         }
+    }
+}
+
+// MARK: - POI Annotation Class
+
+/// POI 标记类
+/// 用于在地图上显示 POI 位置
+class POIAnnotation: NSObject, MKAnnotation {
+    /// POI 数据
+    var poi: POI
+
+    /// 标记坐标（已转换为 GCJ-02）
+    var coordinate: CLLocationCoordinate2D
+
+    /// 标题（可选）
+    var title: String? {
+        poi.name
+    }
+
+    /// 副标题（可选）
+    var subtitle: String? {
+        poi.type.rawValue
+    }
+
+    init(poi: POI, coordinate: CLLocationCoordinate2D) {
+        self.poi = poi
+        self.coordinate = coordinate
+        super.init()
     }
 }
