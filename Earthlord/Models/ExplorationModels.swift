@@ -168,6 +168,22 @@ struct InventoryItem: Identifiable, Codable {
     var quantity: Int               // 数量
     var quality: ItemQuality?       // 品质（可选，如食物、材料没有品质）
     let obtainedAt: Date            // 获得时间
+
+    // AI 生成的自定义信息（可选）
+    var customName: String?         // AI 生成的独特名称
+    var customStory: String?        // AI 生成的背景故事
+    var customCategory: String?     // AI 生成的分类
+    var customRarity: String?       // AI 生成的稀有度
+
+    /// 显示名称（优先使用自定义名称）
+    func displayName(fallback: String) -> String {
+        return customName ?? fallback
+    }
+
+    /// 是否有 AI 自定义信息
+    var hasCustomInfo: Bool {
+        return customName != nil
+    }
 }
 
 // MARK: - 探索结果模型
@@ -190,6 +206,12 @@ struct ItemLoot: Identifiable, Codable {
     let definitionId: String    // 物品定义 ID
     let quantity: Int           // 数量
     let quality: ItemQuality?   // 品质
+
+    // AI 生成的自定义信息（可选）
+    var customName: String?     // AI 生成的独特名称
+    var customStory: String?    // AI 生成的背景故事
+    var customCategory: String? // AI 生成的分类
+    var customRarity: String?   // AI 生成的稀有度
 }
 
 /// 探索结果
@@ -332,6 +354,11 @@ struct InventoryItemDB: Codable {
     let quantity: Int
     let quality: Int?
     let obtainedAt: String
+    // AI 自定义字段
+    let customName: String?
+    let customStory: String?
+    let customCategory: String?
+    let customRarity: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -339,6 +366,10 @@ struct InventoryItemDB: Codable {
         case itemDefinitionId = "item_definition_id"
         case quantity, quality
         case obtainedAt = "obtained_at"
+        case customName = "custom_name"
+        case customStory = "custom_story"
+        case customCategory = "custom_category"
+        case customRarity = "custom_rarity"
     }
 
     /// 转换为 InventoryItem
@@ -354,7 +385,11 @@ struct InventoryItemDB: Codable {
             definitionId: itemDefinitionId,
             quantity: quantity,
             quality: qual,
-            obtainedAt: date
+            obtainedAt: date,
+            customName: customName,
+            customStory: customStory,
+            customCategory: customCategory,
+            customRarity: customRarity
         )
     }
 }
@@ -386,11 +421,20 @@ struct InventoryItemInsert: Codable {
     let itemDefinitionId: String
     let quantity: Int
     let quality: Int?
+    // AI 自定义字段
+    let customName: String?
+    let customStory: String?
+    let customCategory: String?
+    let customRarity: String?
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
         case itemDefinitionId = "item_definition_id"
         case quantity, quality
+        case customName = "custom_name"
+        case customStory = "custom_story"
+        case customCategory = "custom_category"
+        case customRarity = "custom_rarity"
     }
 }
 

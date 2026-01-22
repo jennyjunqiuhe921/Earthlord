@@ -73,9 +73,15 @@ struct BackpackView: View {
             }
         }
 
-        // 按搜索文本筛选
+        // 按搜索文本筛选（包括自定义名称）
         if !searchText.isEmpty {
             items = items.filter { item in
+                // 先检查自定义名称
+                if let customName = item.customName,
+                   customName.localizedCaseInsensitiveContains(searchText) {
+                    return true
+                }
+                // 再检查物品定义名称
                 if let definition = inventoryManager.getDefinition(for: item.definitionId) {
                     return definition.name.localizedCaseInsensitiveContains(searchText)
                 }
@@ -116,9 +122,23 @@ struct BackpackView: View {
         .navigationTitle("背包")
         .navigationBarTitleDisplayMode(.large)
         .onAppear {
+            // 调试日志
+            print("🎒 [BackpackView] onAppear - InventoryManager 实例: \(ObjectIdentifier(inventoryManager))")
+            print("🎒 [BackpackView] 当前 inventoryItems.count: \(inventoryManager.inventoryItems.count)")
+            print("🎒 [BackpackView] 当前 itemDefinitions.count: \(inventoryManager.itemDefinitions.count)")
+
             // 加载背包数据
             Task {
                 try? await inventoryManager.loadInventory()
+                // 加载后再次打印
+                print("🎒 [BackpackView] 加载后 inventoryItems.count: \(inventoryManager.inventoryItems.count)")
+                print("🎒 [BackpackView] 加载后 itemDefinitions.count: \(inventoryManager.itemDefinitions.count)")
+
+                // 打印物品详情
+                for item in inventoryManager.inventoryItems {
+                    let hasDefinition = inventoryManager.getDefinition(for: item.definitionId) != nil
+                    print("🎒 [BackpackView] 物品: \(item.definitionId), 数量: \(item.quantity), 有定义: \(hasDefinition)")
+                }
             }
             // 启动容量动画
             withAnimation(.spring(response: 0.8, dampingFraction: 0.8).delay(0.2)) {
@@ -128,6 +148,12 @@ struct BackpackView: View {
         .refreshable {
             // 下拉刷新背包数据
             try? await inventoryManager.loadInventory()
+        }
+        .onChange(of: inventoryManager.inventoryItems.count) { _ in
+            // 物品数量变化时刷新容量显示
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                animatedCapacity = currentCapacity
+            }
         }
         .onChange(of: currentCapacity) { newValue in
             // 容量变化时的动画
@@ -308,7 +334,7 @@ struct BackpackView: View {
             } else {
                 ForEach(filteredItems) { item in
                     if let definition = inventoryManager.getDefinition(for: item.definitionId) {
-                        ItemCard(item: item, definition: definition)
+                        ItemCard(item: item, definition: definition, inventoryManager: inventoryManager)
                     }
                 }
             }
@@ -439,6 +465,13 @@ struct CategoryFilterButton: View {
 struct ItemCard: View {
     let item: InventoryItem
     let definition: ItemDefinition
+    let inventoryManager: InventoryManager
+
+    /// 是否正在使用
+    @State private var isUsing = false
+
+    /// 使用成功提示
+    @State private var showUseSuccess = false
 
     var body: some View {
         HStack(spacing: 16) {
@@ -457,11 +490,24 @@ struct ItemCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 // 第一行：名称 + 稀有度标签
                 HStack(spacing: 8) {
-                    Text(definition.name)
+                    // 优先显示 AI 生成的自定义名称
+                    Text(item.displayName(fallback: definition.name))
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(ApocalypseTheme.textPrimary)
 
-                    RarityBadge(rarity: definition.rarity)
+                    // AI 物品标识
+                    if item.hasCustomInfo {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.purple)
+                    }
+
+                    // 显示 AI 生成的稀有度或默认稀有度
+                    if let customRarity = item.customRarity {
+                        CustomRarityBadge(rarity: customRarity)
+                    } else {
+                        RarityBadge(rarity: definition.rarity)
+                    }
                 }
 
                 // 第二行：数量 + 重量
@@ -503,14 +549,22 @@ struct ItemCard: View {
                 Button(action: {
                     handleUseItem()
                 }) {
-                    Text("使用")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(ApocalypseTheme.primary)
-                        .cornerRadius(6)
+                    HStack(spacing: 4) {
+                        if isUsing {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(0.7)
+                        }
+                        Text(isUsing ? "使用中" : "使用")
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(isUsing ? Color.gray : ApocalypseTheme.primary)
+                    .cornerRadius(6)
                 }
+                .disabled(isUsing)
 
                 // 存储按钮
                 Button(action: {
@@ -580,8 +634,31 @@ struct ItemCard: View {
     // MARK: - Actions
 
     private func handleUseItem() {
+        guard !isUsing else { return }
+
+        isUsing = true
         print("🎒 使用物品: \(definition.name) (数量: \(item.quantity))")
-        // TODO: 实现使用物品逻辑
+
+        Task {
+            do {
+                let success = try await inventoryManager.useItem(item, quantity: 1)
+                if success {
+                    print("✅ 物品使用成功")
+                    // 触发成功震动
+                    let generator = UINotificationFeedbackGenerator()
+                    generator.prepare()
+                    generator.notificationOccurred(.success)
+                }
+            } catch {
+                print("❌ 使用物品失败: \(error.localizedDescription)")
+                // 触发错误震动
+                let generator = UINotificationFeedbackGenerator()
+                generator.prepare()
+                generator.notificationOccurred(.error)
+            }
+
+            isUsing = false
+        }
     }
 
     private func handleStoreItem() {
@@ -665,6 +742,37 @@ struct QualityBadge: View {
             return Color.blue
         case .excellent:
             return Color.purple
+        }
+    }
+}
+
+// MARK: - AI 自定义稀有度徽章
+
+struct CustomRarityBadge: View {
+    let rarity: String
+
+    var body: some View {
+        Text(rarity)
+            .font(.system(size: 10, weight: .bold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(rarityColor)
+            .cornerRadius(4)
+    }
+
+    private var rarityColor: Color {
+        let lowercased = rarity.lowercased()
+        if lowercased.contains("传说") || lowercased.contains("legendary") {
+            return Color.orange
+        } else if lowercased.contains("史诗") || lowercased.contains("epic") {
+            return Color.purple
+        } else if lowercased.contains("稀有") || lowercased.contains("rare") {
+            return Color.blue
+        } else if lowercased.contains("罕见") || lowercased.contains("uncommon") {
+            return Color.green
+        } else {
+            return Color.gray
         }
     }
 }

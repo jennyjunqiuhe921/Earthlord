@@ -236,35 +236,36 @@ struct MapTabView: View {
         }
         // POI 接近弹窗（从底部滑出）
         .overlay(alignment: .bottom) {
-            if explorationManager.showPOIPopup, let poi = explorationManager.currentPOI {
-                POIProximityPopup(
-                    poi: poi,
-                    distance: explorationManager.currentPOIDistance,
-                    onScavenge: {
-                        Task {
-                            await explorationManager.scavengePOI()
+            Group {
+                if explorationManager.showPOIPopup, let poi = explorationManager.currentPOI {
+                    POIProximityPopup(
+                        poi: poi,
+                        distance: explorationManager.currentPOIDistance,
+                        onScavenge: {
+                            Task {
+                                await explorationManager.scavengePOI()
+                            }
+                        },
+                        onDismiss: {
+                            explorationManager.dismissPOIPopup()
                         }
-                    },
-                    onDismiss: {
-                        explorationManager.dismissPOIPopup()
-                    }
-                )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: explorationManager.showPOIPopup)
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: explorationManager.showPOIPopup)
         }
-        // 搜刮结果弹窗（全屏）
-        .fullScreenCover(isPresented: $explorationManager.showScavengeResult) {
-            if let poi = explorationManager.scavengedPOI {
-                ScavengeResultView(
-                    poi: poi,
-                    items: explorationManager.scavengeItems,
-                    onDismiss: {
-                        explorationManager.dismissScavengeResult()
-                    }
-                )
-                .environmentObject(inventoryManager)
-            }
+        // 搜刮结果弹窗（全屏）- 使用 item 绑定确保有效数据时才显示
+        .fullScreenCover(item: $explorationManager.scavengedPOI) { poi in
+            ScavengeResultView(
+                poi: poi,
+                items: explorationManager.scavengeItems,
+                onDismiss: {
+                    explorationManager.dismissScavengeResult()
+                }
+            )
+            .environmentObject(explorationManager)
+            .environmentObject(inventoryManager)
         }
     }
 
@@ -293,6 +294,28 @@ struct MapTabView: View {
             }
 
             Spacer()
+
+            // 测试按钮（仅在探索状态下显示）
+            if explorationManager.state == .exploring || explorationManager.state == .speedWarning {
+                Button {
+                    // 直接触发测试 POI 弹窗
+                    explorationManager.triggerTestPOIPopup(type: .hospital, dangerLevel: 4)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "flask.fill")
+                            .font(.system(size: 14))
+                        Text("测试")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(Color.purple)
+                    )
+                }
+            }
         }
         .padding()
         .background(

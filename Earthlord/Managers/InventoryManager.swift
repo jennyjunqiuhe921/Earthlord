@@ -39,7 +39,7 @@ class InventoryManager: ObservableObject {
     init() {
         self.supabase = SupabaseClient(
             supabaseURL: URL(string: "https://acnriuoexalqvckiuvgr.supabase.co")!,
-            supabaseKey: "sb_publishable_ddDdaU8v_cxisWA6TiHDuA_BHAdLp-R"
+            supabaseKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFjbnJpdW9leGFscXZja2l1dmdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5NTQzNDUsImV4cCI6MjA4MTUzMDM0NX0.cOTtYT-dnBDLNKFzFh3pIU6H1W0hksl3sdgdWiqOjIM"
         )
     }
 
@@ -133,6 +133,66 @@ class InventoryManager: ObservableObject {
         return Array(itemDefinitions.values)
     }
 
+    /// 使用物品（减少数量，数量为0时删除）
+    /// - Parameters:
+    ///   - item: 要使用的物品
+    ///   - quantity: 使用数量（默认1）
+    /// - Returns: 是否使用成功
+    @discardableResult
+    func useItem(_ item: InventoryItem, quantity: Int = 1) async throws -> Bool {
+        guard quantity > 0 && quantity <= item.quantity else {
+            print("❌ 使用数量无效: 请求 \(quantity), 可用 \(item.quantity)")
+            return false
+        }
+
+        let newQuantity = item.quantity - quantity
+
+        if newQuantity > 0 {
+            // 更新数量
+            let update = InventoryItemUpdate(
+                quantity: newQuantity,
+                updatedAt: ISO8601DateFormatter().string(from: Date())
+            )
+
+            try await supabase
+                .from("inventory_items")
+                .update(update)
+                .eq("id", value: item.id)
+                .execute()
+
+            print("✅ 使用物品成功: \(item.definitionId), 剩余 \(newQuantity)")
+        } else {
+            // 删除物品
+            try await supabase
+                .from("inventory_items")
+                .delete()
+                .eq("id", value: item.id)
+                .execute()
+
+            print("✅ 物品已用尽并删除: \(item.definitionId)")
+        }
+
+        // 刷新本地数据
+        try await loadInventory()
+
+        return true
+    }
+
+    /// 删除物品
+    /// - Parameter item: 要删除的物品
+    func deleteItem(_ item: InventoryItem) async throws {
+        try await supabase
+            .from("inventory_items")
+            .delete()
+            .eq("id", value: item.id)
+            .execute()
+
+        print("🗑️ 删除物品: \(item.definitionId)")
+
+        // 刷新本地数据
+        try await loadInventory()
+    }
+
     // MARK: - Private Methods
 
     /// 获取当前用户ID
@@ -143,12 +203,19 @@ class InventoryManager: ObservableObject {
 
     /// 添加单个物品（处理堆叠逻辑）
     private func addSingleItem(_ item: ItemLoot, userId: String) async throws {
-        // 查找是否已有该物品
+        // AI 生成的物品（有自定义名称）不堆叠，每个都是独立的
+        if item.customName != nil {
+            try await insertNewItem(item, userId: userId)
+            return
+        }
+
+        // 普通物品：查找是否已有该物品
         let existing: [InventoryItemDB] = try await supabase
             .from("inventory_items")
             .select()
             .eq("user_id", value: userId)
             .eq("item_definition_id", value: item.definitionId)
+            .is("custom_name", value: nil)  // 只查找没有自定义名称的物品
             .execute()
             .value
 
@@ -187,22 +254,32 @@ class InventoryManager: ObservableObject {
                 // 溢出部分作为新物品
                 let overflow = newQuantity - maxStack
                 if overflow > 0 {
-                    try await insertNewItem(item.definitionId, quantity: overflow, userId: userId)
+                    let overflowItem = ItemLoot(
+                        id: UUID().uuidString,
+                        definitionId: item.definitionId,
+                        quantity: overflow,
+                        quality: item.quality
+                    )
+                    try await insertNewItem(overflowItem, userId: userId)
                 }
             }
         } else {
             // 插入新物品
-            try await insertNewItem(item.definitionId, quantity: item.quantity, userId: userId)
+            try await insertNewItem(item, userId: userId)
         }
     }
 
-    /// 插入新物品记录
-    private func insertNewItem(_ definitionId: String, quantity: Int, userId: String) async throws {
+    /// 插入新物品记录（支持 AI 自定义字段）
+    private func insertNewItem(_ item: ItemLoot, userId: String) async throws {
         let insert = InventoryItemInsert(
             userId: userId,
-            itemDefinitionId: definitionId,
-            quantity: quantity,
-            quality: nil
+            itemDefinitionId: item.definitionId,
+            quantity: item.quantity,
+            quality: item.quality?.rawValue,
+            customName: item.customName,
+            customStory: item.customStory,
+            customCategory: item.customCategory,
+            customRarity: item.customRarity
         )
 
         try await supabase
@@ -210,6 +287,10 @@ class InventoryManager: ObservableObject {
             .insert(insert)
             .execute()
 
-        print("📦 插入新物品: \(definitionId) x\(quantity)")
+        if let customName = item.customName {
+            print("📦 插入AI物品: \(customName) (定义: \(item.definitionId)) x\(item.quantity)")
+        } else {
+            print("📦 插入新物品: \(item.definitionId) x\(item.quantity)")
+        }
     }
 }

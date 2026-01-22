@@ -87,8 +87,14 @@ class ExplorationManager: NSObject, ObservableObject {
     /// 是否显示搜刮结果
     @Published var showScavengeResult: Bool = false
 
-    /// 搜刮获得的物品
+    /// 搜刮获得的物品（传统方式，保留作为降级方案）
     @Published var scavengeItems: [ItemLoot] = []
+
+    /// AI 生成的物品列表
+    @Published var aiGeneratedItems: [AIGeneratedItem] = []
+
+    /// 是否正在生成 AI 物品
+    @Published var isGeneratingAIItems: Bool = false
 
     /// 当前搜刮的 POI（用于结果显示）
     @Published var scavengedPOI: POI? = nil
@@ -119,8 +125,8 @@ class ExplorationManager: NSObject, ObservableObject {
     /// Supabase 客户端
     private let supabase: SupabaseClient
 
-    /// 背包管理器引用
-    private weak var inventoryManager: InventoryManager?
+    /// 背包管理器引用（使用强引用确保不会被释放）
+    private var inventoryManager: InventoryManager?
 
     /// 玩家位置管理器引用
     private weak var playerLocationManager: PlayerLocationManager?
@@ -176,7 +182,7 @@ class ExplorationManager: NSObject, ObservableObject {
         self.locationManager = CLLocationManager()
         self.supabase = SupabaseClient(
             supabaseURL: URL(string: "https://acnriuoexalqvckiuvgr.supabase.co")!,
-            supabaseKey: "sb_publishable_ddDdaU8v_cxisWA6TiHDuA_BHAdLp-R"
+            supabaseKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFjbnJpdW9leGFscXZja2l1dmdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5NTQzNDUsImV4cCI6MjA4MTUzMDM0NX0.cOTtYT-dnBDLNKFzFh3pIU6H1W0hksl3sdgdWiqOjIM"
         )
 
         super.init()
@@ -206,7 +212,14 @@ class ExplorationManager: NSObject, ObservableObject {
     /// 设置背包管理器引用
     func setInventoryManager(_ manager: InventoryManager) {
         self.inventoryManager = manager
-        log("InventoryManager 已设置")
+        log("✅ InventoryManager 已设置, 实例ID: \(ObjectIdentifier(manager))")
+    }
+
+    /// 检查 InventoryManager 是否已设置
+    func checkInventoryManager() -> Bool {
+        let isSet = inventoryManager != nil
+        log("检查 InventoryManager: \(isSet ? "已设置" : "未设置")")
+        return isSet
     }
 
     /// 设置玩家位置管理器引用
@@ -268,6 +281,8 @@ class ExplorationManager: NSObject, ObservableObject {
         currentPOIDistance = 0
         showScavengeResult = false
         scavengeItems = []
+        aiGeneratedItems = []
+        isGeneratingAIItems = false
         scavengedPOI = nil
         scavengedPOIIds = []
 
@@ -698,8 +713,8 @@ class ExplorationManager: NSObject, ObservableObject {
 
     /// 检查是否接近任何 POI
     private func checkPOIProximity(currentLocation: CLLocation) {
-        // 检查是否正在显示弹窗
-        guard !showPOIPopup && !showScavengeResult else { return }
+        // 检查是否正在显示弹窗（使用 scavengedPOI 作为搜刮结果弹窗的真实状态）
+        guard !showPOIPopup && scavengedPOI == nil else { return }
 
         // ⭐ 关键修复：将用户坐标从 WGS-84 转换为 GCJ-02
         // MapKit 返回的 POI 坐标是 GCJ-02，GPS 返回的用户位置是 WGS-84
@@ -840,8 +855,8 @@ class ExplorationManager: NSObject, ObservableObject {
             return
         }
 
-        // 检查是否正在显示其他弹窗
-        guard !showPOIPopup && !showScavengeResult else {
+        // 检查是否正在显示其他弹窗（使用 scavengedPOI 作为搜刮结果弹窗的真实状态）
+        guard !showPOIPopup && scavengedPOI == nil else {
             log("正在显示其他弹窗，忽略 POI 进入事件")
             return
         }
@@ -876,14 +891,14 @@ class ExplorationManager: NSObject, ObservableObject {
         log("关闭 POI 弹窗")
     }
 
-    /// 执行搜刮
+    /// 执行搜刮（使用 AI 生成物品）
     func scavengePOI() async {
         guard let poi = currentPOI else {
             log("无当前 POI，无法搜刮", level: "ERROR")
             return
         }
 
-        log("开始搜刮: \(poi.name)")
+        log("开始搜刮: \(poi.name) (危险等级: \(poi.dangerLevel))")
 
         // 标记为已搜刮
         scavengedPOIIds.insert(poi.id)
@@ -897,27 +912,150 @@ class ExplorationManager: NSObject, ObservableObject {
         // 关闭接近弹窗
         showPOIPopup = false
 
-        // 生成随机物品
-        let items = await generateScavengeItems()
+        // 设置生成状态
+        isGeneratingAIItems = true
+
+        // 计算物品数量（基于 POI 危险等级）
+        let itemCount = AIItemGenerator.shared.calculateItemCount(for: poi)
+        log("计划生成 \(itemCount) 个物品")
+
+        // 尝试使用 AI 生成物品
+        var generatedItems: [AIGeneratedItem]? = nil
+
+        generatedItems = await AIItemGenerator.shared.generateItems(for: poi, count: itemCount)
+
+        // 如果 AI 生成失败，使用降级方案
+        if generatedItems == nil || generatedItems!.isEmpty {
+            log("AI 生成失败，使用降级方案", level: "WARN")
+            generatedItems = AIItemGenerator.shared.generateFallbackItems(for: poi, count: itemCount)
+        }
+
+        // 保存 AI 生成的物品
+        aiGeneratedItems = generatedItems ?? []
+
+        // 同时转换为 ItemLoot 添加到背包（保持向后兼容）
+        let items = convertAIItemsToItemLoot(generatedItems ?? [])
+        scavengeItems = items
+
+        log("转换后的物品: \(items.map { $0.definitionId })")
 
         // 添加到背包
         if !items.isEmpty {
-            do {
-                try await inventoryManager?.addItems(items)
-                log("搜刮物品已添加到背包: \(items.count) 件")
-            } catch {
-                log("添加搜刮物品到背包失败: \(error.localizedDescription)", level: "ERROR")
+            if let manager = inventoryManager {
+                log("🎒 [ExplorationManager] 使用 InventoryManager 实例ID: \(ObjectIdentifier(manager))")
+                do {
+                    try await manager.addItems(items)
+                    log("✅ 搜刮物品已添加到背包: \(items.count) 件")
+                    log("🎒 [ExplorationManager] 添加后 inventoryItems.count: \(manager.inventoryItems.count)")
+                } catch {
+                    log("❌ 添加搜刮物品到背包失败: \(error.localizedDescription)", level: "ERROR")
+                }
+            } else {
+                log("❌ inventoryManager 为 nil，无法添加物品到背包!", level: "ERROR")
             }
+        } else {
+            log("⚠️ 转换后物品列表为空", level: "WARN")
         }
 
-        // 保存搜刮的 POI 和物品
+        // 完成生成
+        isGeneratingAIItems = false
+
+        // 保存搜刮的 POI
         scavengedPOI = poi
-        scavengeItems = items
 
         // 显示搜刮结果
         showScavengeResult = true
 
-        log("搜刮完成: \(poi.name)，获得 \(items.count) 件物品")
+        log("搜刮完成: \(poi.name)，获得 \(aiGeneratedItems.count) 件 AI 生成物品")
+    }
+
+    /// 将 AI 生成的物品转换为 ItemLoot（用于背包系统）
+    /// 将 AI 物品映射到数据库中已有的物品定义，同时保留 AI 生成的自定义信息
+    private func convertAIItemsToItemLoot(_ aiItems: [AIGeneratedItem]) -> [ItemLoot] {
+        return aiItems.compactMap { aiItem in
+            // 根据分类和稀有度映射到现有物品定义
+            let definitionId = mapAIItemToDefinitionId(category: aiItem.categoryEnum, rarity: aiItem.rarityEnum)
+
+            guard let defId = definitionId else {
+                log("无法映射 AI 物品: \(aiItem.name) (分类: \(aiItem.category), 稀有度: \(aiItem.rarity))", level: "WARN")
+                return nil
+            }
+
+            // 保留 AI 生成的自定义信息
+            return ItemLoot(
+                id: aiItem.id,
+                definitionId: defId,
+                quantity: 1,
+                quality: nil,
+                customName: aiItem.name,           // AI 生成的独特名称
+                customStory: aiItem.story,         // AI 生成的背景故事
+                customCategory: aiItem.category,   // AI 生成的分类
+                customRarity: aiItem.rarity        // AI 生成的稀有度
+            )
+        }
+    }
+
+    /// 将 AI 物品的分类和稀有度映射到现有物品定义 ID
+    private func mapAIItemToDefinitionId(category: ItemCategory, rarity: ItemRarity) -> String? {
+        // 物品映射表（基于数据库中的 item_definitions）
+        // 格式: [分类: [稀有度: 物品ID]]
+        let itemMap: [ItemCategory: [ItemRarity: String]] = [
+            .medical: [
+                .common: "item_bandage",
+                .uncommon: "item_bandage",
+                .rare: "item_first_aid_kit",
+                .epic: "item_antibiotics",
+                .legendary: "item_antibiotics"
+            ],
+            .food: [
+                .common: "item_biscuit",
+                .uncommon: "item_canned_food",
+                .rare: "item_canned_food",
+                .epic: "item_canned_food",
+                .legendary: "item_canned_food"
+            ],
+            .water: [
+                .common: "item_water",
+                .uncommon: "item_water",
+                .rare: "item_water",
+                .epic: "item_water",
+                .legendary: "item_water"
+            ],
+            .tool: [
+                .common: "item_matches",
+                .uncommon: "item_matches",
+                .rare: "item_flashlight",
+                .epic: "item_gas_mask",
+                .legendary: "item_gas_mask"
+            ],
+            .material: [
+                .common: "item_matches",
+                .uncommon: "item_matches",
+                .rare: "item_toolbox",
+                .epic: "item_generator_parts",
+                .legendary: "item_generator_parts"
+            ],
+            .weapon: [
+                .common: "item_matches",
+                .uncommon: "item_toolbox",
+                .rare: "item_toolbox",
+                .epic: "item_toolbox",
+                .legendary: "item_toolbox"
+            ]
+        ]
+
+        // 查找映射
+        if let categoryMap = itemMap[category], let itemId = categoryMap[rarity] {
+            return itemId
+        }
+
+        // 降级：返回同分类的普通物品
+        if let categoryMap = itemMap[category], let itemId = categoryMap[.common] {
+            return itemId
+        }
+
+        // 最终降级：返回饼干
+        return "item_biscuit"
     }
 
     /// 生成搜刮物品
@@ -989,9 +1127,100 @@ class ExplorationManager: NSObject, ObservableObject {
     func dismissScavengeResult() {
         showScavengeResult = false
         scavengeItems = []
+        aiGeneratedItems = []
         scavengedPOI = nil
         currentPOI = nil
         log("关闭搜刮结果弹窗")
+    }
+
+    // MARK: - 测试方法
+
+    /// 添加测试 POI（在用户附近指定距离处）
+    /// - Parameters:
+    ///   - distance: 距离用户的米数（默认 10 米）
+    ///   - type: POI 类型（默认医院）
+    ///   - dangerLevel: 危险等级（1-5，默认 3）
+    func addTestPOI(distance: Double = 10, type: POIType = .hospital, dangerLevel: Int = 3) {
+        guard let currentLocation = locationManager.location?.coordinate else {
+            log("无法获取当前位置，无法添加测试 POI", level: "ERROR")
+            return
+        }
+
+        // 将用户坐标从 WGS-84 转换为 GCJ-02（与 MapKit POI 保持一致）
+        let userGcj02 = CoordinateConverter.wgs84ToGcj02(currentLocation)
+
+        // 计算偏移（向北偏移指定距离）
+        // 1度纬度约等于 111,000 米
+        let latOffset = distance / 111000.0
+        let testCoordinate = CLLocationCoordinate2D(
+            latitude: userGcj02.latitude + latOffset,
+            longitude: userGcj02.longitude
+        )
+
+        // 创建测试 POI
+        let testPOI = POI(
+            id: "test_poi_\(UUID().uuidString.prefix(8))",
+            name: "🧪 测试点 - \(type.rawValue)",
+            type: type,
+            coordinate: testCoordinate,
+            status: .discovered,
+            hasLoot: true,
+            description: "这是一个用于测试 AI 物品生成的虚拟 POI",
+            dangerLevel: dangerLevel
+        )
+
+        // 添加到 POI 列表
+        nearbyPOIs.append(testPOI)
+
+        // 设置地理围栏
+        let region = CLCircularRegion(
+            center: testCoordinate,
+            radius: poiTriggerDistance,
+            identifier: testPOI.id
+        )
+        region.notifyOnEntry = true
+        region.notifyOnExit = false
+        locationManager.startMonitoring(for: region)
+
+        log("✅ 测试 POI 已添加: \(testPOI.name)")
+        log("   位置: (\(String(format: "%.6f", testCoordinate.latitude)), \(String(format: "%.6f", testCoordinate.longitude)))")
+        log("   距离: \(distance) 米（向北）")
+        log("   类型: \(type.rawValue), 危险等级: \(dangerLevel)")
+    }
+
+    /// 直接触发测试 POI 的搜刮弹窗（无需走到 POI 位置）
+    func triggerTestPOIPopup(type: POIType = .hospital, dangerLevel: Int = 4) {
+        guard let currentLocation = locationManager.location?.coordinate else {
+            log("无法获取当前位置", level: "ERROR")
+            return
+        }
+
+        // 将用户坐标从 WGS-84 转换为 GCJ-02
+        let userGcj02 = CoordinateConverter.wgs84ToGcj02(currentLocation)
+
+        // 创建测试 POI（就在用户位置）
+        let testPOI = POI(
+            id: "test_trigger_\(UUID().uuidString.prefix(8))",
+            name: "🧪 测试搜刮点 - \(type.rawValue)",
+            type: type,
+            coordinate: userGcj02,
+            status: .discovered,
+            hasLoot: true,
+            description: "测试 AI 物品生成功能",
+            dangerLevel: dangerLevel
+        )
+
+        // 设置当前 POI 并显示弹窗
+        currentPOI = testPOI
+        currentPOIDistance = 0
+        showPOIPopup = true
+
+        // 触发震动
+        let generator = UINotificationFeedbackGenerator()
+        generator.prepare()
+        generator.notificationOccurred(.warning)
+
+        log("✅ 测试 POI 弹窗已触发: \(testPOI.name), 危险等级: \(dangerLevel)")
     }
 }
 

@@ -4,14 +4,14 @@
 //
 //  Created by Claude on 2026-01-13.
 //
-//  搜刮结果展示视图
+//  搜刮结果展示视图 - 支持 AI 生成的独特物品
 //
 
 import SwiftUI
 import CoreLocation
 
 /// 搜刮结果视图
-/// 显示搜刮 POI 获得的物品
+/// 显示搜刮 POI 获得的 AI 生成物品
 struct ScavengeResultView: View {
 
     // MARK: - Properties
@@ -19,11 +19,14 @@ struct ScavengeResultView: View {
     /// 搜刮的 POI
     let poi: POI
 
-    /// 获得的物品列表
+    /// 获得的物品列表（传统方式，保留兼容）
     let items: [ItemLoot]
 
     /// 关闭回调
     let onDismiss: () -> Void
+
+    /// 探索管理器（用于获取 AI 生成的物品）
+    @EnvironmentObject var explorationManager: ExplorationManager
 
     /// 背包管理器（用于获取物品定义）
     @EnvironmentObject var inventoryManager: InventoryManager
@@ -32,6 +35,19 @@ struct ScavengeResultView: View {
 
     @State private var showItems = false
     @State private var itemsAppeared: Set<String> = []
+    @State private var expandedStories: Set<String> = []
+
+    // MARK: - Computed Properties
+
+    /// AI 生成的物品
+    private var aiItems: [AIGeneratedItem] {
+        explorationManager.aiGeneratedItems
+    }
+
+    /// 是否有 AI 生成的物品
+    private var hasAIItems: Bool {
+        !aiItems.isEmpty
+    }
 
     // MARK: - Body
 
@@ -67,7 +83,7 @@ struct ScavengeResultView: View {
 
                     Spacer()
 
-                    Text("\(items.count) 件")
+                    Text("\(hasAIItems ? aiItems.count : items.count) 件")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(ApocalypseTheme.textSecondary)
                 }
@@ -78,13 +94,21 @@ struct ScavengeResultView: View {
                 // 物品列表
                 ScrollView {
                     VStack(spacing: 12) {
-                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                            itemRow(item: item, index: index)
+                        if hasAIItems {
+                            // 显示 AI 生成的物品
+                            ForEach(Array(aiItems.enumerated()), id: \.element.id) { index, item in
+                                aiItemRow(item: item, index: index)
+                            }
+                        } else {
+                            // 降级：显示传统物品
+                            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                                legacyItemRow(item: item, index: index)
+                            }
                         }
                     }
                     .padding(.horizontal, 24)
                 }
-                .frame(maxHeight: 250)
+                .frame(maxHeight: 350)
 
                 // 确认按钮
                 Button(action: onDismiss) {
@@ -166,16 +190,30 @@ struct ScavengeResultView: View {
                     .foregroundColor(poiColor)
             }
 
-            // 名称
+            // 名称和危险等级
             VStack(alignment: .leading, spacing: 4) {
                 Text(poi.name)
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(ApocalypseTheme.textPrimary)
                     .lineLimit(1)
 
-                Text(poi.type.rawValue)
-                    .font(.system(size: 13))
-                    .foregroundColor(poiColor)
+                HStack(spacing: 6) {
+                    Text(poi.type.rawValue)
+                        .font(.system(size: 13))
+                        .foregroundColor(poiColor)
+
+                    Text("·")
+                        .foregroundColor(ApocalypseTheme.textMuted)
+
+                    // 危险等级指示
+                    HStack(spacing: 2) {
+                        ForEach(1...5, id: \.self) { level in
+                            Circle()
+                                .fill(level <= poi.dangerLevel ? dangerLevelColor(poi.dangerLevel) : Color.gray.opacity(0.3))
+                                .frame(width: 6, height: 6)
+                        }
+                    }
+                }
             }
 
             Spacer()
@@ -183,8 +221,120 @@ struct ScavengeResultView: View {
         .padding(.horizontal, 24)
     }
 
-    /// 物品行
-    private func itemRow(item: ItemLoot, index: Int) -> some View {
+    /// AI 生成的物品行
+    private func aiItemRow(item: AIGeneratedItem, index: Int) -> some View {
+        let isExpanded = expandedStories.contains(item.id)
+
+        return VStack(alignment: .leading, spacing: 0) {
+            // 主行
+            HStack(spacing: 12) {
+                // 物品图标
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(aiRarityColor(item.rarity).opacity(0.2))
+                        .frame(width: 48, height: 48)
+
+                    Image(systemName: aiCategoryIcon(item.category))
+                        .font(.system(size: 22))
+                        .foregroundColor(aiRarityColor(item.rarity))
+                }
+
+                // 物品名称和稀有度
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.name)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(ApocalypseTheme.textPrimary)
+                        .lineLimit(2)
+
+                    HStack(spacing: 6) {
+                        // 稀有度标签
+                        Text(aiRarityText(item.rarity))
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(aiRarityColor(item.rarity))
+                            .cornerRadius(4)
+
+                        // 分类标签
+                        Text(item.category)
+                            .font(.system(size: 11))
+                            .foregroundColor(ApocalypseTheme.textSecondary)
+                    }
+                }
+
+                Spacer()
+
+                // 展开/收起按钮
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        if isExpanded {
+                            expandedStories.remove(item.id)
+                        } else {
+                            expandedStories.insert(item.id)
+                        }
+                    }
+                } label: {
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(ApocalypseTheme.textSecondary)
+                        .frame(width: 32, height: 32)
+                        .background(ApocalypseTheme.background.opacity(0.5))
+                        .cornerRadius(8)
+                }
+            }
+            .padding(12)
+
+            // 故事展开区域
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 8) {
+                    Divider()
+                        .background(ApocalypseTheme.textMuted.opacity(0.2))
+
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "text.quote")
+                            .font(.system(size: 12))
+                            .foregroundColor(ApocalypseTheme.textMuted)
+
+                        Text(item.story)
+                            .font(.system(size: 13))
+                            .foregroundColor(ApocalypseTheme.textSecondary)
+                            .italic()
+                            .lineSpacing(4)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 12)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .background(ApocalypseTheme.background.opacity(0.5))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(aiRarityColor(item.rarity).opacity(0.3), lineWidth: 1)
+        )
+        .opacity(itemsAppeared.contains(item.id) ? 1 : 0)
+        .offset(x: itemsAppeared.contains(item.id) ? 0 : 30)
+        .animation(.easeOut(duration: 0.4).delay(Double(index) * 0.15), value: itemsAppeared)
+        .onAppear {
+            if showItems {
+                DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.15) {
+                    itemsAppeared.insert(item.id)
+                }
+            }
+        }
+        .onChange(of: showItems) { newValue in
+            if newValue {
+                DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.15) {
+                    itemsAppeared.insert(item.id)
+                }
+            }
+        }
+    }
+
+    /// 传统物品行（降级方案）
+    private func legacyItemRow(item: ItemLoot, index: Int) -> some View {
         let definition = inventoryManager.getDefinition(for: item.definitionId)
 
         return HStack(spacing: 12) {
@@ -261,7 +411,69 @@ struct ScavengeResultView: View {
         }
     }
 
-    /// 稀有度颜色
+    /// 危险等级颜色
+    private func dangerLevelColor(_ level: Int) -> Color {
+        switch level {
+        case 1: return .green
+        case 2: return .yellow
+        case 3: return .orange
+        case 4: return .red
+        case 5: return .purple
+        default: return .gray
+        }
+    }
+
+    /// AI 稀有度颜色
+    private func aiRarityColor(_ rarity: String) -> Color {
+        switch rarity.lowercased() {
+        case "common":
+            return Color.gray
+        case "uncommon":
+            return Color.green
+        case "rare":
+            return Color.blue
+        case "epic":
+            return Color.purple
+        case "legendary":
+            return Color.orange
+        default:
+            return Color.gray
+        }
+    }
+
+    /// AI 稀有度文字
+    private func aiRarityText(_ rarity: String) -> String {
+        switch rarity.lowercased() {
+        case "common": return "普通"
+        case "uncommon": return "优秀"
+        case "rare": return "稀有"
+        case "epic": return "史诗"
+        case "legendary": return "传奇"
+        default: return "普通"
+        }
+    }
+
+    /// AI 分类图标
+    private func aiCategoryIcon(_ category: String) -> String {
+        switch category {
+        case "医疗":
+            return "cross.case.fill"
+        case "食物":
+            return "fork.knife"
+        case "工具":
+            return "wrench.fill"
+        case "武器":
+            return "shield.fill"
+        case "材料":
+            return "cube.fill"
+        case "水":
+            return "drop.fill"
+        default:
+            return "shippingbox.fill"
+        }
+    }
+
+    /// 传统稀有度颜色
     private func rarityColor(_ rarity: ItemRarity?) -> Color {
         guard let rarity = rarity else { return Color.gray }
         switch rarity {
@@ -278,7 +490,7 @@ struct ScavengeResultView: View {
         }
     }
 
-    /// 物品分类图标
+    /// 传统物品分类图标
     private func itemIcon(_ category: ItemCategory?) -> String {
         guard let category = category else { return "shippingbox.fill" }
         switch category {
@@ -304,20 +516,17 @@ struct ScavengeResultView: View {
     ScavengeResultView(
         poi: POI(
             id: "test",
-            name: "废弃的沃尔玛超市",
-            type: .supermarket,
+            name: "协和医院急诊室",
+            type: .hospital,
             coordinate: .init(latitude: 22.54, longitude: 114.06),
             status: .looted,
             hasLoot: false,
             description: "已被搜刮",
-            dangerLevel: 2
+            dangerLevel: 4
         ),
-        items: [
-            ItemLoot(id: "1", definitionId: "water_bottle", quantity: 2, quality: nil),
-            ItemLoot(id: "2", definitionId: "canned_food", quantity: 1, quality: nil),
-            ItemLoot(id: "3", definitionId: "bandage", quantity: 3, quality: nil)
-        ],
+        items: [],
         onDismiss: { print("关闭") }
     )
+    .environmentObject(ExplorationManager())
     .environmentObject(InventoryManager())
 }

@@ -70,7 +70,7 @@ class PlayerLocationManager: ObservableObject {
     init() {
         self.supabase = SupabaseClient(
             supabaseURL: URL(string: "https://acnriuoexalqvckiuvgr.supabase.co")!,
-            supabaseKey: "sb_publishable_ddDdaU8v_cxisWA6TiHDuA_BHAdLp-R"
+            supabaseKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFjbnJpdW9leGFscXZja2l1dmdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5NTQzNDUsImV4cCI6MjA4MTUzMDM0NX0.cOTtYT-dnBDLNKFzFh3pIU6H1W0hksl3sdgdWiqOjIM"
         )
 
         // 监听 App 生命周期
