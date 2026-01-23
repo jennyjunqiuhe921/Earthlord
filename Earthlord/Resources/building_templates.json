@@ -1,0 +1,98 @@
+{
+    "templates": [
+        {
+            "id": "building_campfire",
+            "name": "篝火",
+            "description": "基础的火源，提供温暖和照明。可以用于简单的烹饪。",
+            "category": "survival",
+            "tier": 1,
+            "build_time": 60,
+            "max_per_territory": 3,
+            "resources": [
+                {"resource_id": "item_wood", "amount": 5},
+                {"resource_id": "item_stone", "amount": 3}
+            ],
+            "effects": [
+                {"effect_type": "warmth", "value": 10.0},
+                {"effect_type": "light_radius", "value": 5.0}
+            ],
+            "icon_name": "flame.fill",
+            "upgrade_to_id": "building_fireplace"
+        },
+        {
+            "id": "building_shelter",
+            "name": "简易庇护所",
+            "description": "用木材和布料搭建的临时住所，提供基本的防护。",
+            "category": "survival",
+            "tier": 1,
+            "build_time": 300,
+            "max_per_territory": 1,
+            "resources": [
+                {"resource_id": "item_wood", "amount": 20},
+                {"resource_id": "item_cloth", "amount": 5}
+            ],
+            "effects": [
+                {"effect_type": "shelter", "value": 1.0},
+                {"effect_type": "rest_bonus", "value": 1.5}
+            ],
+            "icon_name": "house.fill",
+            "upgrade_to_id": "building_cabin"
+        },
+        {
+            "id": "building_storage_small",
+            "name": "小型储物箱",
+            "description": "简易的木制储物箱，可以存放少量物品。",
+            "category": "storage",
+            "tier": 1,
+            "build_time": 120,
+            "max_per_territory": 5,
+            "resources": [
+                {"resource_id": "item_wood", "amount": 10},
+                {"resource_id": "item_scrap_metal", "amount": 2}
+            ],
+            "effects": [
+                {"effect_type": "storage_capacity", "value": 50.0}
+            ],
+            "icon_name": "archivebox.fill",
+            "upgrade_to_id": "building_storage_medium"
+        },
+        {
+            "id": "building_farm_simple",
+            "name": "简易农田",
+            "description": "一小块开垦的土地，可以种植基础作物。",
+            "category": "production",
+            "tier": 1,
+            "build_time": 600,
+            "max_per_territory": 3,
+            "resources": [
+                {"resource_id": "item_wood", "amount": 8},
+                {"resource_id": "item_stone", "amount": 4}
+            ],
+            "effects": [
+                {"effect_type": "food_production", "value": 2.0},
+                {"effect_type": "crop_slots", "value": 4.0}
+            ],
+            "icon_name": "leaf.fill",
+            "upgrade_to_id": "building_farm_advanced"
+        },
+        {
+            "id": "building_solar_panel",
+            "name": "太阳能板",
+            "description": "利用太阳能发电的设备，为其他设施提供电力。",
+            "category": "energy",
+            "tier": 2,
+            "build_time": 900,
+            "max_per_territory": 4,
+            "resources": [
+                {"resource_id": "item_scrap_metal", "amount": 15},
+                {"resource_id": "item_glass", "amount": 8},
+                {"resource_id": "item_electronic_parts", "amount": 5}
+            ],
+            "effects": [
+                {"effect_type": "power_output", "value": 100.0}
+            ],
+            "icon_name": "sun.max.fill",
+            "upgrade_to_id": null
+        }
+    ]
+}
