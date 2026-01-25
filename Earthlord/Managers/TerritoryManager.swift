@@ -328,6 +328,10 @@ class TerritoryManager: ObservableObject {
             print("✅ 领地删除成功")
             TerritoryLogger.shared.log("领地删除成功：ID \(territoryId)", type: .info)
             isLoading = false
+
+            // 发送删除通知
+            NotificationCenter.default.post(name: .territoryDeleted, object: nil)
+
             return true
 
         } catch {
@@ -337,6 +341,25 @@ class TerritoryManager: ObservableObject {
             isLoading = false
             return false
         }
+    }
+
+    /// 更新领地名称
+    /// - Parameters:
+    ///   - territoryId: 领地 ID
+    ///   - newName: 新名称
+    func updateTerritoryName(territoryId: String, newName: String) async throws {
+        print("✏️ 更新领地名称: \(territoryId) -> \(newName)")
+
+        try await supabase
+            .from("territories")
+            .update(["name": newName])
+            .eq("id", value: territoryId)
+            .execute()
+
+        print("✅ 领地名称更新成功")
+
+        // 发送更新通知
+        NotificationCenter.default.post(name: .territoryUpdated, object: nil)
     }
 
     // MARK: - 碰撞检测算法
@@ -530,4 +553,11 @@ class TerritoryManager: ObservableObject {
             warningLevel: warningLevel
         )
     }
+}
+
+// MARK: - Notification Names
+
+extension Notification.Name {
+    static let territoryUpdated = Notification.Name("territoryUpdated")
+    static let territoryDeleted = Notification.Name("territoryDeleted")
 }

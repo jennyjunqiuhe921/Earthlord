@@ -452,7 +452,12 @@ class BuildingManager: ObservableObject {
         }
     }
 
-    // MARK: - Delete
+    // MARK: - Delete / Demolish
+
+    /// 拆除建筑（带确认，可能返还部分资源）
+    func demolishBuilding(buildingId: String) async throws {
+        try await deleteBuilding(buildingId: buildingId)
+    }
 
     /// 删除建筑
     func deleteBuilding(buildingId: String) async throws {

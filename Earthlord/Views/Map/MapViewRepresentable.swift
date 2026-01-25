@@ -43,6 +43,12 @@ struct MapViewRepresentable: UIViewRepresentable {
     /// 附近的 POI 列表
     var nearbyPOIs: [POI]
 
+    /// 玩家建筑列表
+    var buildings: [PlayerBuilding]
+
+    /// 建筑模板字典
+    var buildingTemplates: [String: BuildingTemplate]
+
     // MARK: - UIViewRepresentable Methods
 
     /// 创建地图视图
@@ -80,6 +86,9 @@ struct MapViewRepresentable: UIViewRepresentable {
 
         // 更新 POI 标记
         context.coordinator.updatePOIAnnotations(on: uiView, pois: nearbyPOIs)
+
+        // 更新建筑标记
+        context.coordinator.updateBuildingAnnotations(on: uiView, buildings: buildings, templates: buildingTemplates)
     }
 
     /// 创建协调器（负责处理地图回调）
@@ -236,6 +245,24 @@ struct MapViewRepresentable: UIViewRepresentable {
                 return view
             }
 
+            // 处理建筑标记
+            if let buildingAnnotation = annotation as? MapBuildingAnnotation {
+                let identifier = "MapBuildingAnnotation"
+                var view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
+
+                if view == nil {
+                    view = MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+                    view?.canShowCallout = true
+                } else {
+                    view?.annotation = annotation
+                }
+
+                view?.image = createBuildingMarkerImage(for: buildingAnnotation)
+                view?.centerOffset = CGPoint(x: 0, y: -15)
+
+                return view
+            }
+
             return nil
         }
 
@@ -307,6 +334,88 @@ struct MapViewRepresentable: UIViewRepresentable {
                 let iconName = poi.iconName
                 if let iconImage = UIImage(systemName: iconName)?
                     .withConfiguration(UIImage.SymbolConfiguration(pointSize: 20, weight: .semibold))
+                    .withTintColor(.white, renderingMode: .alwaysOriginal) {
+
+                    let iconSize = iconImage.size
+                    let iconRect = CGRect(
+                        x: (size.width - iconSize.width) / 2,
+                        y: (size.height - iconSize.height) / 2,
+                        width: iconSize.width,
+                        height: iconSize.height
+                    )
+                    iconImage.draw(in: iconRect)
+                }
+            }
+        }
+
+        // MARK: - Building Annotation Methods
+
+        /// 更新建筑标记
+        func updateBuildingAnnotations(on mapView: MKMapView, buildings: [PlayerBuilding], templates: [String: BuildingTemplate]) {
+            // 获取当前的建筑标记
+            let existingAnnotations = mapView.annotations.compactMap { $0 as? MapBuildingAnnotation }
+            let existingIds = Set(existingAnnotations.map { $0.building.id })
+            let newIds = Set(buildings.map { $0.id })
+
+            // 移除不再存在的标记
+            let toRemove = existingAnnotations.filter { !newIds.contains($0.building.id) }
+            mapView.removeAnnotations(toRemove)
+
+            // 添加新的标记
+            for building in buildings where !existingIds.contains(building.id) {
+                guard let coord = building.coordinate else { continue }
+                // 建筑坐标直接使用，不做 GCJ-02 转换（数据库已是转换后的坐标）
+                let template = templates[building.templateId]
+                let annotation = MapBuildingAnnotation(
+                    building: building,
+                    template: template,
+                    coordinate: coord
+                )
+                mapView.addAnnotation(annotation)
+            }
+        }
+
+        /// 创建建筑标记图片
+        private func createBuildingMarkerImage(for annotation: MapBuildingAnnotation) -> UIImage {
+            let size = CGSize(width: 32, height: 32)
+            let renderer = UIGraphicsImageRenderer(size: size)
+
+            return renderer.image { context in
+                let rect = CGRect(origin: .zero, size: size)
+
+                // 根据建筑状态和分类设置颜色
+                let color: UIColor
+                if annotation.building.status == .constructing {
+                    color = .systemYellow
+                } else {
+                    switch annotation.template?.category {
+                    case .survival:
+                        color = .systemOrange
+                    case .storage:
+                        color = .systemBlue
+                    case .production:
+                        color = .systemGreen
+                    case .energy:
+                        color = .systemYellow
+                    case .none:
+                        color = .systemGray
+                    }
+                }
+
+                // 背景圆
+                color.withAlphaComponent(0.9).setFill()
+                let circlePath = UIBezierPath(ovalIn: rect.insetBy(dx: 2, dy: 2))
+                circlePath.fill()
+
+                // 白色边框
+                UIColor.white.setStroke()
+                circlePath.lineWidth = 2
+                circlePath.stroke()
+
+                // 图标
+                let iconName = annotation.template?.iconName ?? "building.fill"
+                if let iconImage = UIImage(systemName: iconName)?
+                    .withConfiguration(UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold))
                     .withTintColor(.white, renderingMode: .alwaysOriginal) {
 
                     let iconSize = iconImage.size
@@ -452,6 +561,41 @@ class POIAnnotation: NSObject, MKAnnotation {
 
     init(poi: POI, coordinate: CLLocationCoordinate2D) {
         self.poi = poi
+        self.coordinate = coordinate
+        super.init()
+    }
+}
+
+// MARK: - Map Building Annotation Class
+
+/// 地图建筑标记类
+/// 用于在主地图上显示玩家建筑
+class MapBuildingAnnotation: NSObject, MKAnnotation {
+    /// 建筑数据
+    let building: PlayerBuilding
+
+    /// 建筑模板
+    let template: BuildingTemplate?
+
+    /// 标记坐标（数据库已是 GCJ-02，直接使用）
+    var coordinate: CLLocationCoordinate2D
+
+    /// 标题
+    var title: String? {
+        building.buildingName
+    }
+
+    /// 副标题
+    var subtitle: String? {
+        if building.status == .constructing {
+            return "建造中"
+        }
+        return template?.category.displayName
+    }
+
+    init(building: PlayerBuilding, template: BuildingTemplate?, coordinate: CLLocationCoordinate2D) {
+        self.building = building
+        self.template = template
         self.coordinate = coordinate
         super.init()
     }

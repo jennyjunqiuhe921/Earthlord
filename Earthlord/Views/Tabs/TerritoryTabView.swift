@@ -12,6 +12,8 @@ struct TerritoryTabView: View {
     // MARK: - Environment Objects
 
     @EnvironmentObject var territoryManager: TerritoryManager
+    @EnvironmentObject var buildingManager: BuildingManager
+    @EnvironmentObject var inventoryManager: InventoryManager
 
     // MARK: - State
 
@@ -74,6 +76,15 @@ struct TerritoryTabView: View {
                         }
                     }
                 )
+                .environmentObject(territoryManager)
+                .environmentObject(buildingManager)
+                .environmentObject(inventoryManager)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .territoryUpdated)) { _ in
+                Task { await loadMyTerritories() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .territoryDeleted)) { _ in
+                Task { await loadMyTerritories() }
             }
             .alert("加载失败", isPresented: $showError) {
                 Button("确定", role: .cancel) {}

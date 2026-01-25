@@ -28,6 +28,9 @@ struct MapTabView: View {
     /// 背包管理器（从上层注入）
     @EnvironmentObject var inventoryManager: InventoryManager
 
+    /// 建筑管理器（从上层注入）
+    @EnvironmentObject var buildingManager: BuildingManager
+
     /// 已加载的领地列表
     @State private var territories: [Territory] = []
 
@@ -81,7 +84,9 @@ struct MapTabView: View {
                     isPathClosed: locationManager.isPathClosed,
                     territories: territories,
                     currentUserId: authManager.currentUser?.id.uuidString,
-                    nearbyPOIs: explorationManager.nearbyPOIs
+                    nearbyPOIs: explorationManager.nearbyPOIs,
+                    buildings: buildingManager.playerBuildings,
+                    buildingTemplates: buildingManager.templates
                 )
                 .ignoresSafeArea()
                 .onAppear {
@@ -294,28 +299,6 @@ struct MapTabView: View {
             }
 
             Spacer()
-
-            // 测试按钮（仅在探索状态下显示）
-            if explorationManager.state == .exploring || explorationManager.state == .speedWarning {
-                Button {
-                    // 直接触发测试 POI 弹窗
-                    explorationManager.triggerTestPOIPopup(type: .hospital, dangerLevel: 4)
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "flask.fill")
-                            .font(.system(size: 14))
-                        Text("测试")
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        Capsule()
-                            .fill(Color.purple)
-                    )
-                }
-            }
         }
         .padding()
         .background(
@@ -1211,4 +1194,5 @@ struct MapTabView: View {
         .environmentObject(AuthManager())
         .environmentObject(ExplorationManager())
         .environmentObject(InventoryManager())
+        .environmentObject(BuildingManager.shared)
 }

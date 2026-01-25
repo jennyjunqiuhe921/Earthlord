@@ -293,4 +293,53 @@ class InventoryManager: ObservableObject {
             print("📦 插入新物品: \(item.definitionId) x\(item.quantity)")
         }
     }
+
+    // MARK: - Debug Methods
+
+    /// 添加测试建造资源（100 木头 + 100 石头）
+    /// 仅用于测试建造系统
+    func addTestBuildingResources() async throws {
+        guard let userId = try? await getCurrentUserId() else {
+            throw NSError(domain: "InventoryManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "无法获取用户ID"])
+        }
+
+        print("🧪 开始添加测试建造资源...")
+
+        // 确保物品定义已加载
+        if itemDefinitions.isEmpty {
+            try await loadItemDefinitions()
+        }
+
+        var addedItems: [String] = []
+
+        // 尝试添加木头
+        if itemDefinitions["item_wood"] != nil {
+            let woodItem = ItemLoot(id: UUID().uuidString, definitionId: "item_wood", quantity: 100, quality: nil)
+            try await addSingleItem(woodItem, userId: userId)
+            addedItems.append("100 木头")
+            print("📦 已添加 100 木头")
+        } else {
+            print("⚠️ 木头物品定义不存在，跳过")
+        }
+
+        // 尝试添加石头
+        if itemDefinitions["item_stone"] != nil {
+            let stoneItem = ItemLoot(id: UUID().uuidString, definitionId: "item_stone", quantity: 100, quality: nil)
+            try await addSingleItem(stoneItem, userId: userId)
+            addedItems.append("100 石头")
+            print("📦 已添加 100 石头")
+        } else {
+            print("⚠️ 石头物品定义不存在，跳过")
+        }
+
+        if addedItems.isEmpty {
+            throw NSError(domain: "InventoryManager", code: 2, userInfo: [NSLocalizedDescriptionKey: "木头和石头的物品定义都不存在，请先在数据库中添加"])
+        }
+
+        // 重新加载背包
+        try await loadInventory()
+
+        print("✅ 测试建造资源已添加: \(addedItems.joined(separator: " + "))")
+    }
 }
+

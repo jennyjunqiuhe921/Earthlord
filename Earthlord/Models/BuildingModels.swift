@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import CoreLocation
 
 // MARK: - 建筑分类
 
@@ -280,4 +281,39 @@ struct PlayerBuildingUpdate: Codable {
 /// 建筑模板 JSON 文件结构
 struct BuildingTemplatesJSON: Codable {
     let templates: [BuildingTemplate]
+}
+
+// MARK: - PlayerBuilding 扩展
+
+extension PlayerBuilding {
+    /// 坐标（直接使用，数据库已是 GCJ-02）
+    var coordinate: CLLocationCoordinate2D? {
+        guard let lat = locationLat, let lon = locationLon else { return nil }
+        return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+    }
+
+    /// 建造进度（0.0-1.0）
+    func buildProgress(template: BuildingTemplate) -> Double {
+        guard status == .constructing else { return 1.0 }
+        let elapsed = Date().timeIntervalSince(buildStartedAt)
+        return min(1.0, max(0.0, elapsed / Double(template.buildTime)))
+    }
+
+    /// 格式化剩余时间
+    func formattedRemainingTime(template: BuildingTemplate) -> String {
+        let remaining = remainingBuildTime(template: template)
+        guard remaining > 0 else { return "即将完成" }
+
+        let hours = remaining / 3600
+        let minutes = (remaining % 3600) / 60
+        let seconds = remaining % 60
+
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        } else if minutes > 0 {
+            return "\(minutes)m \(seconds)s"
+        } else {
+            return "\(seconds)s"
+        }
+    }
 }
