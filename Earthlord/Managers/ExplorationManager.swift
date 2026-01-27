@@ -624,6 +624,10 @@ class ExplorationManager: NSObject, ObservableObject {
             return
         }
 
+        // ⭐ POI 距离检测 - 必须在所有过滤逻辑之前执行
+        // 确保用户接近 POI 时即使移动很小或站立不动也能触发弹窗
+        checkPOIProximity(currentLocation: location)
+
         // 计算与上一个点的距离和速度
         if let lastLocation = lastValidLocation {
             let distance = location.distance(from: lastLocation)
@@ -706,9 +710,6 @@ class ExplorationManager: NSObject, ObservableObject {
 
         // 通知玩家位置管理器（用于上报和密度检测）
         playerLocationManager?.handleLocationUpdate(location.coordinate)
-
-        // ⭐ POI 距离检测（比地理围栏更可靠）
-        checkPOIProximity(currentLocation: location)
     }
 
     /// 检查是否接近任何 POI

@@ -33,6 +33,9 @@ struct RootView: View {
     /// 建筑管理器（全局共享，单例）
     private var buildingManager = BuildingManager.shared
 
+    /// 交易管理器（全局共享，单例）
+    private var tradeManager = TradeManager.shared
+
     /// 启动页是否完成
     @State private var splashFinished = false
 
@@ -52,6 +55,7 @@ struct RootView: View {
                     .environmentObject(explorationManager)
                     .environmentObject(playerLocationManager)
                     .environmentObject(buildingManager)
+                    .environmentObject(tradeManager)
                     .transition(.opacity)
                     .onAppear {
                         // 设置探索管理器的背包管理器引用

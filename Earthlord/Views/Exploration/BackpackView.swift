@@ -66,9 +66,15 @@ struct BackpackView: View {
         // 按分类筛选
         if let category = selectedCategory {
             items = items.filter { item in
+                // 优先检查自定义分类
+                if let customCategory = item.customCategory {
+                    return customCategory == category.rawValue
+                }
+                // 然后检查物品定义分类
                 if let definition = inventoryManager.getDefinition(for: item.definitionId) {
                     return definition.category == category
                 }
+                // 没有分类信息的物品在选择特定分类时不显示
                 return false
             }
         }
@@ -85,7 +91,8 @@ struct BackpackView: View {
                 if let definition = inventoryManager.getDefinition(for: item.definitionId) {
                     return definition.name.localizedCaseInsensitiveContains(searchText)
                 }
-                return false
+                // 最后检查物品 ID
+                return item.definitionId.localizedCaseInsensitiveContains(searchText)
             }
         }
 
@@ -333,9 +340,9 @@ struct BackpackView: View {
                 emptyState
             } else {
                 ForEach(filteredItems) { item in
-                    if let definition = inventoryManager.getDefinition(for: item.definitionId) {
-                        ItemCard(item: item, definition: definition, inventoryManager: inventoryManager)
-                    }
+                    let definition = inventoryManager.getDefinition(for: item.definitionId)
+                        ?? createFallbackDefinition(for: item)
+                    ItemCard(item: item, definition: definition, inventoryManager: inventoryManager)
                 }
             }
         }
@@ -350,6 +357,118 @@ struct BackpackView: View {
             withAnimation(.easeInOut(duration: 0.3)) {
                 itemListTransitionID = UUID()
             }
+        }
+    }
+
+    /// 为没有定义的物品创建降级定义
+    private func createFallbackDefinition(for item: InventoryItem) -> ItemDefinition {
+        // 根据自定义分类确定物品类型
+        let category: ItemCategory
+        if let customCategory = item.customCategory {
+            switch customCategory {
+            case "水": category = .water
+            case "食物": category = .food
+            case "医疗": category = .medical
+            case "材料": category = .material
+            case "工具": category = .tool
+            case "武器": category = .weapon
+            default: category = .material
+            }
+        } else {
+            // 尝试从物品ID推断分类
+            category = Self.inferCategory(from: item.definitionId)
+        }
+
+        // 根据自定义稀有度确定
+        let rarity: ItemRarity
+        if let customRarity = item.customRarity {
+            switch customRarity {
+            case "普通": rarity = .common
+            case "罕见": rarity = .uncommon
+            case "稀有": rarity = .rare
+            case "史诗": rarity = .epic
+            case "传说": rarity = .legendary
+            default: rarity = .common
+            }
+        } else {
+            rarity = .common
+        }
+
+        // 使用自定义名称或中文映射名称
+        let name = item.customName ?? Self.itemIdToChineseName(item.definitionId)
+
+        return ItemDefinition(
+            id: item.definitionId,
+            name: name,
+            category: category,
+            weight: 100,
+            volume: 100,
+            rarity: rarity,
+            description: item.customStory ?? "未知物品",
+            canStack: true,
+            maxStack: 99,
+            hasQuality: false
+        )
+    }
+
+    /// 物品 ID 到中文名称的映射（降级方案）
+    private static func itemIdToChineseName(_ itemId: String) -> String {
+        let mapping: [String: String] = [
+            // 水类
+            "item_water": "矿泉水",
+            "item_water_bottle": "矿泉水",
+            "item_purified_water": "净化水",
+            // 食物类
+            "item_biscuit": "饼干",
+            "item_canned_food": "罐头食品",
+            "item_energy_bar": "能量棒",
+            "item_mre": "军用口粮",
+            // 医疗类
+            "item_bandage": "绷带",
+            "item_first_aid_kit": "急救包",
+            "item_antibiotics": "抗生素",
+            "item_medicine": "抗生素药品",
+            "item_painkillers": "止痛药",
+            "item_surgical_kit": "手术套件",
+            // 工具类
+            "item_matches": "火柴",
+            "item_flashlight": "手电筒",
+            "item_gas_mask": "防毒面具",
+            "item_toolbox": "工具箱",
+            "item_rope": "绳索",
+            "item_compass": "指南针",
+            "item_radio": "对讲机",
+            // 材料类
+            "item_wood": "木头",
+            "item_stone": "石头",
+            "item_metal_scrap": "金属碎片",
+            "item_scrap_metal": "废金属",
+            "item_cloth": "布料",
+            "item_electronics": "电子元件",
+            "item_generator_parts": "发电机零件",
+            "item_fuel": "燃料",
+            // 武器类
+            "item_knife": "小刀",
+            "item_bat": "棒球棒",
+            "item_axe": "斧头"
+        ]
+        return mapping[itemId] ?? itemId
+    }
+
+    /// 从物品ID推断分类
+    private static func inferCategory(from itemId: String) -> ItemCategory {
+        if itemId.contains("water") {
+            return .water
+        } else if itemId.contains("food") || itemId.contains("biscuit") || itemId.contains("mre") || itemId.contains("canned") {
+            return .food
+        } else if itemId.contains("bandage") || itemId.contains("medicine") || itemId.contains("medical") || itemId.contains("aid") || itemId.contains("antibiotic") || itemId.contains("surgical") {
+            return .medical
+        } else if itemId.contains("wood") || itemId.contains("stone") || itemId.contains("metal") || itemId.contains("cloth") || itemId.contains("electronic") || itemId.contains("generator") || itemId.contains("fuel") {
+            return .material
+        } else if itemId.contains("knife") || itemId.contains("bat") || itemId.contains("axe") || itemId.contains("weapon") {
+            return .weapon
+        } else {
+            return .tool
         }
     }
 

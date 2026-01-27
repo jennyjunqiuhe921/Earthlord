@@ -119,8 +119,8 @@ struct ResourcesTabView: View {
             placeholderView(title: "领地", icon: "map.fill")
 
         case .trading:
-            // 交易页面（开发中）
-            placeholderView(title: "交易", icon: "arrow.left.arrow.right")
+            // 交易页面
+            TradeMainView()
         }
     }
 

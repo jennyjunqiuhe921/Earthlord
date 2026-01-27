@@ -491,18 +491,17 @@ struct ExplorationResultView: View {
             } else {
                 VStack(spacing: 12) {
                     ForEach(Array(result!.stats.itemsFoundThisSession.enumerated()), id: \.element.id) { index, loot in
-                        if let definition = inventoryManager.getDefinition(for: loot.definitionId) {
-                            RewardItemRow(
-                                definition: definition,
-                                quantity: loot.quantity,
-                                isVisible: visibleRewardIndices.contains(index)
-                            )
+                        let definition = inventoryManager.getDefinition(for: loot.definitionId)
+                        RewardItemRow(
+                            loot: loot,
+                            definition: definition,
+                            isVisible: visibleRewardIndices.contains(index)
+                        )
 
-                            if loot.id != result!.stats.itemsFoundThisSession.last?.id {
-                                Divider()
-                                    .background(ApocalypseTheme.textMuted.opacity(0.2))
-                                    .padding(.horizontal, 20)
-                            }
+                        if loot.id != result!.stats.itemsFoundThisSession.last?.id {
+                            Divider()
+                                .background(ApocalypseTheme.textMuted.opacity(0.2))
+                                .padding(.horizontal, 20)
                         }
                     }
                 }
@@ -564,11 +563,75 @@ struct ExplorationResultView: View {
 // MARK: - 奖励物品行组件
 
 struct RewardItemRow: View {
-    let definition: ItemDefinition
-    let quantity: Int
+    let loot: ItemLoot
+    let definition: ItemDefinition?
     let isVisible: Bool
 
     @State private var checkmarkScale: CGFloat = 0.1
+
+    /// 显示的物品名称（优先使用自定义名称，然后是定义名称，最后是中文映射或 ID）
+    private var displayName: String {
+        if let customName = loot.customName, !customName.isEmpty {
+            return customName
+        }
+        if let def = definition {
+            return def.name
+        }
+        // 降级：将常见物品 ID 映射到中文名称
+        return Self.itemIdToChineseName(loot.definitionId)
+    }
+
+    /// 物品 ID 到中文名称的映射（降级方案）
+    private static func itemIdToChineseName(_ itemId: String) -> String {
+        let mapping: [String: String] = [
+            // 水类
+            "item_water": "矿泉水",
+            "item_water_bottle": "矿泉水",
+            "item_purified_water": "净化水",
+            // 食物类
+            "item_biscuit": "饼干",
+            "item_canned_food": "罐头食品",
+            "item_energy_bar": "能量棒",
+            "item_mre": "军用口粮",
+            // 医疗类
+            "item_bandage": "绷带",
+            "item_first_aid_kit": "急救包",
+            "item_antibiotics": "抗生素",
+            "item_medicine": "抗生素药品",
+            "item_painkillers": "止痛药",
+            "item_surgical_kit": "手术套件",
+            // 工具类
+            "item_matches": "火柴",
+            "item_flashlight": "手电筒",
+            "item_gas_mask": "防毒面具",
+            "item_toolbox": "工具箱",
+            "item_rope": "绳索",
+            "item_compass": "指南针",
+            "item_radio": "对讲机",
+            // 材料类
+            "item_wood": "木头",
+            "item_stone": "石头",
+            "item_metal_scrap": "金属碎片",
+            "item_scrap_metal": "废金属",
+            "item_cloth": "布料",
+            "item_electronics": "电子元件",
+            "item_generator_parts": "发电机零件",
+            "item_fuel": "燃料",
+            // 武器类
+            "item_knife": "小刀",
+            "item_bat": "棒球棒",
+            "item_axe": "斧头"
+        ]
+        return mapping[itemId] ?? itemId
+    }
+
+    /// 显示的稀有度
+    private var displayRarity: String {
+        if let customRarity = loot.customRarity, !customRarity.isEmpty {
+            return customRarity
+        }
+        return definition?.rarity.rawValue ?? "普通"
+    }
 
     var body: some View {
         HStack(spacing: 16) {
@@ -586,12 +649,19 @@ struct RewardItemRow: View {
             // 中间信息
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    Text(definition.name)
+                    Text(displayName)
                         .font(.system(size: 15, weight: .bold))
                         .foregroundColor(ApocalypseTheme.textPrimary)
 
+                    // AI 物品标识
+                    if loot.customName != nil {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.purple)
+                    }
+
                     // 稀有度标签
-                    Text(definition.rarity.rawValue)
+                    Text(displayRarity)
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(.white)
                         .padding(.horizontal, 6)
@@ -600,7 +670,7 @@ struct RewardItemRow: View {
                         .cornerRadius(4)
                 }
 
-                Text("x\(quantity)")
+                Text("x\(loot.quantity)")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(ApocalypseTheme.textSecondary)
             }
@@ -630,53 +700,69 @@ struct RewardItemRow: View {
 
     /// 分类图标
     private var categoryIcon: String {
-        switch definition.category {
-        case .water:
-            return "drop.fill"
-        case .food:
-            return "fork.knife"
-        case .medical:
-            return "cross.fill"
-        case .material:
-            return "cube.box.fill"
-        case .tool:
-            return "wrench.and.screwdriver.fill"
-        case .weapon:
-            return "shield.fill"
+        // 先检查自定义分类
+        if let customCategory = loot.customCategory {
+            let lowercased = customCategory.lowercased()
+            if lowercased.contains("水") || lowercased.contains("water") { return "drop.fill" }
+            if lowercased.contains("食") || lowercased.contains("food") { return "fork.knife" }
+            if lowercased.contains("医") || lowercased.contains("medical") { return "cross.fill" }
+            if lowercased.contains("工具") || lowercased.contains("tool") { return "wrench.and.screwdriver.fill" }
+            if lowercased.contains("武") || lowercased.contains("weapon") { return "shield.fill" }
+        }
+
+        guard let def = definition else { return "cube.box.fill" }
+        switch def.category {
+        case .water: return "drop.fill"
+        case .food: return "fork.knife"
+        case .medical: return "cross.fill"
+        case .material: return "cube.box.fill"
+        case .tool: return "wrench.and.screwdriver.fill"
+        case .weapon: return "shield.fill"
         }
     }
 
     /// 分类颜色
     private var categoryColor: Color {
-        switch definition.category {
-        case .water:
-            return Color.blue
-        case .food:
-            return Color.brown
-        case .medical:
-            return ApocalypseTheme.danger
-        case .material:
-            return Color.gray
-        case .tool:
-            return Color.orange
-        case .weapon:
-            return ApocalypseTheme.primaryDark
+        // 先检查自定义分类
+        if let customCategory = loot.customCategory {
+            let lowercased = customCategory.lowercased()
+            if lowercased.contains("水") || lowercased.contains("water") { return .blue }
+            if lowercased.contains("食") || lowercased.contains("food") { return .brown }
+            if lowercased.contains("医") || lowercased.contains("medical") { return ApocalypseTheme.danger }
+            if lowercased.contains("工具") || lowercased.contains("tool") { return .orange }
+            if lowercased.contains("武") || lowercased.contains("weapon") { return ApocalypseTheme.primaryDark }
+        }
+
+        guard let def = definition else { return .gray }
+        switch def.category {
+        case .water: return .blue
+        case .food: return .brown
+        case .medical: return ApocalypseTheme.danger
+        case .material: return .gray
+        case .tool: return .orange
+        case .weapon: return ApocalypseTheme.primaryDark
         }
     }
 
     /// 稀有度颜色
     private var rarityColor: Color {
-        switch definition.rarity {
-        case .common:
-            return Color.gray
-        case .uncommon:
-            return Color.green
-        case .rare:
-            return Color.blue
-        case .epic:
-            return Color.purple
-        case .legendary:
-            return Color.orange
+        // 先检查自定义稀有度
+        if let customRarity = loot.customRarity {
+            let lowercased = customRarity.lowercased()
+            if lowercased.contains("传说") || lowercased.contains("legendary") { return .orange }
+            if lowercased.contains("史诗") || lowercased.contains("epic") { return .purple }
+            if lowercased.contains("稀有") || lowercased.contains("rare") { return .blue }
+            if lowercased.contains("罕见") || lowercased.contains("uncommon") { return .green }
+            return .gray
+        }
+
+        guard let def = definition else { return .gray }
+        switch def.rarity {
+        case .common: return .gray
+        case .uncommon: return .green
+        case .rare: return .blue
+        case .epic: return .purple
+        case .legendary: return .orange
         }
     }
 }

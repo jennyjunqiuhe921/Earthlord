@@ -320,14 +320,17 @@ struct ItemDefinitionDB: Codable {
         case "medical": cat = .medical
         case "material": cat = .material
         case "tool": cat = .tool
+        case "weapon": cat = .weapon
         default: cat = .material
         }
 
         let rar: ItemRarity
         switch rarity {
         case "common": rar = .common
+        case "uncommon": rar = .uncommon
         case "rare": rar = .rare
         case "epic": rar = .epic
+        case "legendary": rar = .legendary
         default: rar = .common
         }
 

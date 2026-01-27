@@ -7,8 +7,14 @@
 //  附近兴趣点列表页面
 
 import SwiftUI
+import CoreLocation
+import Combine
 
 struct POIListView: View {
+    // MARK: - Environment
+
+    @EnvironmentObject var inventoryManager: InventoryManager
+
     // MARK: - State
 
     /// 是否正在搜索
@@ -18,10 +24,16 @@ struct POIListView: View {
     @State private var selectedCategory: POIType? = nil
 
     /// POI 数据
-    @State private var pois: [POI] = MockExplorationData.mockPOIs
+    @State private var pois: [POI] = []
 
-    /// GPS 坐标（假数据）
-    @State private var gpsCoordinate = (latitude: 22.54, longitude: 114.06)
+    /// 已搜刮的 POI ID
+    @State private var scavengedPOIIds: Set<String> = []
+
+    /// GPS 坐标
+    @State private var gpsCoordinate: CLLocationCoordinate2D? = nil
+
+    /// 位置管理器
+    @StateObject private var locationManager = SimpleLocationManager()
 
     /// 搜索按钮缩放
     @State private var searchButtonScale: CGFloat = 1.0
@@ -33,15 +45,35 @@ struct POIListView: View {
 
     /// 筛选后的 POI 列表
     private var filteredPOIs: [POI] {
-        if let category = selectedCategory {
-            return pois.filter { $0.type == category }
+        var result = pois
+
+        // 更新已搜刮状态
+        result = result.map { poi in
+            var updatedPOI = poi
+            if scavengedPOIIds.contains(poi.id) {
+                updatedPOI.status = .looted
+                updatedPOI.hasLoot = false
+            }
+            return updatedPOI
         }
-        return pois
+
+        if let category = selectedCategory {
+            return result.filter { $0.type == category }
+        }
+        return result
     }
 
     /// 发现的 POI 数量
     private var discoveredCount: Int {
-        pois.filter { $0.status == .discovered || $0.status == .looted }.count
+        pois.count
+    }
+
+    /// 格式化坐标显示
+    private var coordinateText: String {
+        if let coord = gpsCoordinate {
+            return String(format: "%.2f, %.2f", coord.latitude, coord.longitude)
+        }
+        return "获取中..."
     }
 
     // MARK: - Body
@@ -73,6 +105,13 @@ struct POIListView: View {
         }
         .navigationTitle("附近地点")
         .navigationBarTitleDisplayMode(.large)
+        .onAppear {
+            locationManager.requestPermission()
+            // 初始化时如果有位置就更新坐标
+            if let location = locationManager.location {
+                gpsCoordinate = location.coordinate
+            }
+        }
     }
 
     // MARK: - 状态栏
@@ -85,7 +124,7 @@ struct POIListView: View {
                     .foregroundColor(ApocalypseTheme.info)
                     .font(.system(size: 14))
 
-                Text("GPS: \(String(format: "%.2f", gpsCoordinate.latitude)), \(String(format: "%.2f", gpsCoordinate.longitude))")
+                Text("GPS: \(coordinateText)")
                     .font(.system(size: 14, weight: .medium, design: .monospaced))
                     .foregroundColor(ApocalypseTheme.textSecondary)
 
@@ -203,7 +242,7 @@ struct POIListView: View {
                 emptyState
             } else {
                 ForEach(Array(filteredPOIs.enumerated()), id: \.element.id) { index, poi in
-                    NavigationLink(destination: POIDetailView(poi: poi)) {
+                    NavigationLink(destination: POIDetailView(poi: poi, scavengedPOIIds: $scavengedPOIIds)) {
                         POICard(poi: poi)
                     }
                     .buttonStyle(PlainButtonStyle())
@@ -280,14 +319,41 @@ struct POIListView: View {
 
     // MARK: - Helper Methods
 
-    /// 执行搜索（模拟网络请求）
+    /// 执行真实 POI 搜索
     private func performSearch() {
         isSearching = true
 
-        // 模拟 1.5 秒的网络请求
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            isSearching = false
-            print("✅ 搜索完成")
+        Task {
+            // 获取当前位置
+            guard let location = locationManager.location else {
+                print("❌ 无法获取当前位置")
+                isSearching = false
+                return
+            }
+
+            gpsCoordinate = location.coordinate
+            print("📍 当前位置: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+
+            // 搜索附近 POI
+            let foundPOIs = await POISearchManager.shared.searchNearbyPOIs(
+                center: location.coordinate,
+                radius: 1000,  // 1公里范围
+                maxResults: 10
+            )
+
+            await MainActor.run {
+                // 更新 POI 列表，保留已搜刮状态
+                pois = foundPOIs.map { poi in
+                    var updatedPOI = poi
+                    if scavengedPOIIds.contains(poi.id) {
+                        updatedPOI.status = .looted
+                        updatedPOI.hasLoot = false
+                    }
+                    return updatedPOI
+                }
+                isSearching = false
+                print("✅ 搜索完成，找到 \(pois.count) 个 POI")
+            }
         }
     }
 
@@ -516,10 +582,42 @@ struct POICard: View {
     }
 }
 
+// MARK: - 简单位置管理器
+
+class SimpleLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+
+    @Published var location: CLLocation?
+    @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+    }
+
+    func requestPermission() {
+        manager.requestWhenInUseAuthorization()
+        manager.startUpdatingLocation()
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        location = locations.last
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        authorizationStatus = manager.authorizationStatus
+        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+            manager.startUpdatingLocation()
+        }
+    }
+}
+
 // MARK: - Preview
 
 #Preview {
     NavigationView {
         POIListView()
+            .environmentObject(InventoryManager())
     }
 }
