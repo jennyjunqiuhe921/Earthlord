@@ -36,6 +36,9 @@ struct RootView: View {
     /// 交易管理器（全局共享，单例）
     private var tradeManager = TradeManager.shared
 
+    /// 伙伴管理器（全局共享）
+    @StateObject private var companionManager = CompanionManager()
+
     /// 启动页是否完成
     @State private var splashFinished = false
 
@@ -56,6 +59,7 @@ struct RootView: View {
                     .environmentObject(playerLocationManager)
                     .environmentObject(buildingManager)
                     .environmentObject(tradeManager)
+                    .environmentObject(companionManager)
                     .transition(.opacity)
                     .onAppear {
                         // 设置探索管理器的背包管理器引用
@@ -64,6 +68,8 @@ struct RootView: View {
                         explorationManager.setPlayerLocationManager(playerLocationManager)
                         // 设置建筑管理器的背包管理器引用
                         buildingManager.setInventoryManager(inventoryManager)
+                        // 设置探索管理器的伙伴管理器引用
+                        explorationManager.setCompanionManager(companionManager)
                     }
                     .task {
                         // 加载建筑模板

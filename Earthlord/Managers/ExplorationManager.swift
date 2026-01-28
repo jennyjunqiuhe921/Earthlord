@@ -131,6 +131,9 @@ class ExplorationManager: NSObject, ObservableObject {
     /// 玩家位置管理器引用
     private weak var playerLocationManager: PlayerLocationManager?
 
+    /// 伙伴管理器引用
+    private var companionManager: CompanionManager?
+
     /// 当前玩家密度等级
     @Published var playerDensityLevel: PlayerDensityLevel = .solitary
 
@@ -226,6 +229,12 @@ class ExplorationManager: NSObject, ObservableObject {
     func setPlayerLocationManager(_ manager: PlayerLocationManager) {
         self.playerLocationManager = manager
         log("PlayerLocationManager 已设置")
+    }
+
+    /// 设置伙伴管理器引用
+    func setCompanionManager(_ manager: CompanionManager) {
+        self.companionManager = manager
+        log("CompanionManager 已设置")
     }
 
     /// 开始探索
@@ -548,6 +557,23 @@ class ExplorationManager: NSObject, ObservableObject {
                 log("物品已添加到背包")
             } catch {
                 log("添加物品到背包失败: \(error.localizedDescription)", level: "ERROR")
+            }
+        }
+
+        // 伙伴系统：给出战伙伴加经验
+        if let companionManager = companionManager {
+            do {
+                try await companionManager.grantExplorationExperience(rewardTier: tier)
+                log("伙伴获得探索经验")
+            } catch {
+                log("伙伴经验更新失败: \(error.localizedDescription)", level: "WARN")
+            }
+
+            // 尝试触发伙伴发现事件
+            if let discoveryEvent = CompanionDiscoveryEvent.tryGenerate(rewardTier: tier) {
+                companionManager.discoveryEvent = discoveryEvent
+                companionManager.showDiscovery = true
+                log("发现流浪伙伴! 物种=\(discoveryEvent.species.displayName), 稀有度=\(discoveryEvent.rarity.displayName)")
             }
         }
 

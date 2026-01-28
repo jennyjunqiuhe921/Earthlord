@@ -10,6 +10,7 @@ import SwiftUI
 struct MainTabView: View {
     @State private var selectedTab = 0
     @EnvironmentObject private var authManager: AuthManager
+    @EnvironmentObject private var companionManager: CompanionManager
 
     init() {
         // 自定义 TabBar 外观
@@ -66,21 +67,27 @@ struct MainTabView: View {
                 }
                 .tag(3)
 
+            CompanionListView()
+                .tabItem {
+                    Image(systemName: "pawprint.fill")
+                    Text("伙伴")
+                }
+                .tag(4)
+
             ProfileTabView()
                 .tabItem {
                     Image(systemName: "person.fill")
                     Text("个人")
                 }
-                .tag(4)
-
-            MoreTabView()
-                .tabItem {
-                    Image(systemName: "ellipsis")
-                    Text("更多")
-                }
                 .tag(5)
         }
         .accentColor(ApocalypseTheme.primary)
+        .fullScreenCover(isPresented: $companionManager.showDiscovery) {
+            if let event = companionManager.discoveryEvent {
+                CompanionDiscoveryView(event: event)
+                    .environmentObject(companionManager)
+            }
+        }
     }
 }
 

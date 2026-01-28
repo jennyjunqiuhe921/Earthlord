@@ -55,11 +55,11 @@ struct AuthView: View {
                 VStack(spacing: 30) {
                     // 顶部 Logo 和标题
                     VStack(spacing: 16) {
-                        Image(systemName: "globe.americas.fill")
+                        Image(systemName: "pawprint.circle.fill")
                             .font(.system(size: 80))
                             .foregroundColor(.orange)
 
-                        Text("地球新主")
+                        Text("末日伴侣")
                             .font(.system(size: 36, weight: .bold))
                             .foregroundColor(.white)
                     }
