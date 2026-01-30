@@ -240,29 +240,3 @@ struct ChannelDetailView: View {
     .environmentObject(AuthManager())
 }
 
-// MARK: - Preview Helper
-extension CommunicationChannel {
-    init(
-        id: UUID,
-        creatorId: UUID,
-        channelType: ChannelType,
-        channelCode: String,
-        name: String,
-        description: String?,
-        isActive: Bool,
-        memberCount: Int,
-        createdAt: Date,
-        updatedAt: Date
-    ) {
-        self.id = id
-        self.creatorId = creatorId
-        self.channelType = channelType
-        self.channelCode = channelCode
-        self.name = name
-        self.description = description
-        self.isActive = isActive
-        self.memberCount = memberCount
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-    }
-}

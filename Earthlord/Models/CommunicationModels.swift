@@ -202,6 +202,31 @@ struct CommunicationChannel: Codable, Identifiable {
         case updatedAt = "updated_at"
     }
 
+    // 普通初始化器（用于 Preview 和测试）
+    init(
+        id: UUID,
+        creatorId: UUID,
+        channelType: ChannelType,
+        channelCode: String,
+        name: String,
+        description: String?,
+        isActive: Bool,
+        memberCount: Int,
+        createdAt: Date,
+        updatedAt: Date
+    ) {
+        self.id = id
+        self.creatorId = creatorId
+        self.channelType = channelType
+        self.channelCode = channelCode
+        self.name = name
+        self.description = description
+        self.isActive = isActive
+        self.memberCount = memberCount
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
@@ -248,4 +273,232 @@ struct SubscribedChannel: Identifiable {
     let subscription: ChannelSubscription
 
     var id: UUID { channel.id }
+}
+
+// MARK: - ========== Day 34: 消息系统模型 ==========
+
+// MARK: - 位置点结构体
+struct LocationPoint: Codable, Equatable {
+    let latitude: Double
+    let longitude: Double
+
+    /// 从 PostGIS WKT 格式解析位置
+    /// 例如: "POINT(-122.4194 37.7749)"
+    static func fromPostGIS(_ value: String?) -> LocationPoint? {
+        guard let value = value, !value.isEmpty else { return nil }
+
+        // 尝试解析 WKT 格式: POINT(longitude latitude)
+        let uppercased = value.uppercased()
+        if uppercased.hasPrefix("POINT") {
+            let cleaned = value
+                .replacingOccurrences(of: "POINT(", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: ")", with: "")
+                .trimmingCharacters(in: .whitespaces)
+
+            let parts = cleaned.split(separator: " ")
+            if parts.count == 2,
+               let lon = Double(parts[0]),
+               let lat = Double(parts[1]) {
+                return LocationPoint(latitude: lat, longitude: lon)
+            }
+        }
+
+        return nil
+    }
+}
+
+// MARK: - 消息元数据
+struct MessageMetadata: Codable {
+    var deviceType: String?
+    var replyToId: UUID?
+    var attachmentUrl: String?
+    var isEdited: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case deviceType = "device_type"
+        case replyToId = "reply_to_id"
+        case attachmentUrl = "attachment_url"
+        case isEdited = "is_edited"
+    }
+
+    init(deviceType: String? = nil, replyToId: UUID? = nil, attachmentUrl: String? = nil, isEdited: Bool? = nil) {
+        self.deviceType = deviceType
+        self.replyToId = replyToId
+        self.attachmentUrl = attachmentUrl
+        self.isEdited = isEdited
+    }
+}
+
+// MARK: - 消息类型枚举
+enum MessageType: String, Codable {
+    case text = "text"
+    case system = "system"
+    case location = "location"
+    case alert = "alert"
+
+    var displayName: String {
+        switch self {
+        case .text: return "文本"
+        case .system: return "系统"
+        case .location: return "位置"
+        case .alert: return "警报"
+        }
+    }
+}
+
+// MARK: - 频道消息模型
+struct ChannelMessage: Codable, Identifiable, Equatable {
+    let id: UUID
+    let channelId: UUID
+    let senderId: UUID
+    let content: String
+    let messageType: MessageType
+    let senderLocation: LocationPoint?
+    let metadata: MessageMetadata?
+    let isDeleted: Bool
+    let createdAt: Date
+    let updatedAt: Date
+
+    // 关联数据（JOIN 查询获取）
+    var senderUsername: String?
+    var senderAvatarUrl: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case channelId = "channel_id"
+        case senderId = "sender_id"
+        case content
+        case messageType = "message_type"
+        case senderLocation = "sender_location"
+        case metadata
+        case isDeleted = "is_deleted"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case senderUsername = "sender_username"
+        case senderAvatarUrl = "sender_avatar_url"
+    }
+
+    // 普通初始化器（用于 Preview 和测试）
+    init(
+        id: UUID = UUID(),
+        channelId: UUID,
+        senderId: UUID,
+        content: String,
+        messageType: MessageType = .text,
+        senderLocation: LocationPoint? = nil,
+        metadata: MessageMetadata? = nil,
+        isDeleted: Bool = false,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date(),
+        senderUsername: String? = nil,
+        senderAvatarUrl: String? = nil
+    ) {
+        self.id = id
+        self.channelId = channelId
+        self.senderId = senderId
+        self.content = content
+        self.messageType = messageType
+        self.senderLocation = senderLocation
+        self.metadata = metadata
+        self.isDeleted = isDeleted
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.senderUsername = senderUsername
+        self.senderAvatarUrl = senderAvatarUrl
+    }
+
+    // 自定义解码器处理 PostGIS 和日期格式
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(UUID.self, forKey: .id)
+        channelId = try container.decode(UUID.self, forKey: .channelId)
+        senderId = try container.decode(UUID.self, forKey: .senderId)
+        content = try container.decode(String.self, forKey: .content)
+
+        // 消息类型
+        let typeString = try container.decode(String.self, forKey: .messageType)
+        messageType = MessageType(rawValue: typeString) ?? .text
+
+        // PostGIS POINT 解析
+        if let locationString = try container.decodeIfPresent(String.self, forKey: .senderLocation) {
+            senderLocation = LocationPoint.fromPostGIS(locationString)
+        } else {
+            senderLocation = nil
+        }
+
+        // 元数据
+        metadata = try container.decodeIfPresent(MessageMetadata.self, forKey: .metadata)
+
+        isDeleted = try container.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false
+
+        // 日期解析 - 支持多种格式
+        createdAt = try Self.decodeDate(from: container, forKey: .createdAt) ?? Date()
+        updatedAt = try Self.decodeDate(from: container, forKey: .updatedAt) ?? Date()
+
+        // 关联数据
+        senderUsername = try container.decodeIfPresent(String.self, forKey: .senderUsername)
+        senderAvatarUrl = try container.decodeIfPresent(String.self, forKey: .senderAvatarUrl)
+    }
+
+    // 日期解码辅助方法
+    private static func decodeDate(from container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys) throws -> Date? {
+        // 首先尝试标准 Date 解码
+        if let date = try? container.decode(Date.self, forKey: key) {
+            return date
+        }
+
+        // 尝试字符串格式
+        if let dateString = try? container.decode(String.self, forKey: key) {
+            // ISO8601 格式（带毫秒）
+            let iso8601Formatter = ISO8601DateFormatter()
+            iso8601Formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = iso8601Formatter.date(from: dateString) {
+                return date
+            }
+
+            // ISO8601 格式（不带毫秒）
+            iso8601Formatter.formatOptions = [.withInternetDateTime]
+            if let date = iso8601Formatter.date(from: dateString) {
+                return date
+            }
+
+            // PostgreSQL 默认格式
+            let pgFormatter = DateFormatter()
+            pgFormatter.locale = Locale(identifier: "en_US_POSIX")
+            pgFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZZZZZ"
+            if let date = pgFormatter.date(from: dateString) {
+                return date
+            }
+
+            // 简化格式
+            pgFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            if let date = pgFormatter.date(from: dateString) {
+                return date
+            }
+        }
+
+        return nil
+    }
+
+    // Equatable
+    static func == (lhs: ChannelMessage, rhs: ChannelMessage) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    // 显示用计算属性
+    var timeAgo: String {
+        let interval = Date().timeIntervalSince(createdAt)
+        if interval < 60 {
+            return "刚刚"
+        } else if interval < 3600 {
+            return "\(Int(interval / 60))分钟前"
+        } else if interval < 86400 {
+            return "\(Int(interval / 3600))小时前"
+        } else {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MM-dd HH:mm"
+            return formatter.string(from: createdAt)
+        }
+    }
 }

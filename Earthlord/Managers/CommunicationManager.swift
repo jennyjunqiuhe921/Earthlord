@@ -344,6 +344,200 @@ final class CommunicationManager: ObservableObject {
             return false
         }
     }
+
+    // MARK: - ========== Day 34: 消息系统 ==========
+
+    // MARK: - 消息属性
+    @Published private(set) var channelMessages: [UUID: [ChannelMessage]] = [:]  // channelId -> messages
+    @Published private(set) var isSendingMessage = false
+
+    private var realtimeChannel: RealtimeChannelV2?
+    private var messageSubscriptionTask: Task<Void, Never>?
+    private var subscribedChannelIds: Set<UUID> = []
+
+    // MARK: - 加载频道消息
+
+    /// 加载指定频道的历史消息
+    func loadChannelMessages(channelId: UUID, limit: Int = 50) async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            let response = try await supabase
+                .from("channel_messages")
+                .select()
+                .eq("channel_id", value: channelId.uuidString)
+                .eq("is_deleted", value: false)
+                .order("created_at", ascending: false)
+                .limit(limit)
+                .execute()
+
+            // 使用自定义解码
+            let messages = try decodeMessages(from: response.data)
+
+            // 按时间正序排列（旧消息在前）
+            let sortedMessages = messages.sorted { $0.createdAt < $1.createdAt }
+
+            channelMessages[channelId] = sortedMessages
+        } catch {
+            errorMessage = "加载消息失败: \(error.localizedDescription)"
+            print("❌ 加载消息失败: \(error)")
+        }
+
+        isLoading = false
+    }
+
+    /// 解码消息数据
+    private func decodeMessages(from data: Data) throws -> [ChannelMessage] {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode([ChannelMessage].self, from: data)
+    }
+
+    // MARK: - 发送消息
+
+    /// 发送频道消息
+    func sendChannelMessage(
+        channelId: UUID,
+        content: String,
+        messageType: MessageType = .text,
+        latitude: Double? = nil,
+        longitude: Double? = nil
+    ) async -> Bool {
+        guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            errorMessage = "消息内容不能为空"
+            return false
+        }
+
+        // 检查设备是否可发送
+        guard canSendMessage() else {
+            errorMessage = "当前设备不支持发送消息"
+            return false
+        }
+
+        isSendingMessage = true
+        errorMessage = nil
+
+        do {
+            let params: [String: AnyJSON] = [
+                "p_channel_id": .string(channelId.uuidString),
+                "p_content": .string(content),
+                "p_message_type": .string(messageType.rawValue),
+                "p_latitude": latitude.map { .double($0) } ?? .null,
+                "p_longitude": longitude.map { .double($0) } ?? .null,
+                "p_metadata": .object(["device_type": .string(getCurrentDeviceType().rawValue)])
+            ]
+
+            let _: UUID = try await supabase
+                .rpc("send_channel_message", params: params)
+                .execute()
+                .value
+
+            isSendingMessage = false
+            return true
+        } catch {
+            errorMessage = "发送失败: \(error.localizedDescription)"
+            print("❌ 发送消息失败: \(error)")
+            isSendingMessage = false
+            return false
+        }
+    }
+
+    // MARK: - Realtime 订阅
+
+    /// 开始监听频道消息
+    func subscribeToChannelMessages(channelId: UUID) async {
+        // 避免重复订阅
+        guard !subscribedChannelIds.contains(channelId) else { return }
+        subscribedChannelIds.insert(channelId)
+
+        // 取消之前的订阅
+        await stopRealtimeSubscription()
+
+        // 创建新的 Realtime Channel
+        realtimeChannel = supabase.realtimeV2.channel("channel_messages_\(channelId.uuidString)")
+
+        guard let channel = realtimeChannel else { return }
+
+        // 订阅 postgres_changes
+        let insertions = channel.postgresChange(
+            InsertAction.self,
+            schema: "public",
+            table: "channel_messages",
+            filter: "channel_id=eq.\(channelId.uuidString)"
+        )
+
+        // 启动监听任务
+        messageSubscriptionTask = Task { [weak self] in
+            await channel.subscribe()
+            print("✅ 已订阅频道消息: \(channelId)")
+
+            for await insertion in insertions {
+                await self?.handleNewMessage(insertion: insertion, channelId: channelId)
+            }
+        }
+    }
+
+    /// 停止 Realtime 订阅
+    func stopRealtimeSubscription() async {
+        messageSubscriptionTask?.cancel()
+        messageSubscriptionTask = nil
+
+        if let channel = realtimeChannel {
+            await channel.unsubscribe()
+            realtimeChannel = nil
+        }
+
+        subscribedChannelIds.removeAll()
+        print("✅ 已停止 Realtime 订阅")
+    }
+
+    /// 处理新消息
+    private func handleNewMessage(insertion: InsertAction, channelId: UUID) async {
+        do {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+
+            let message = try insertion.decodeRecord(as: ChannelMessage.self, decoder: decoder)
+
+            // 添加到消息列表
+            await MainActor.run {
+                if channelMessages[channelId] != nil {
+                    // 避免重复添加
+                    if !channelMessages[channelId]!.contains(where: { $0.id == message.id }) {
+                        channelMessages[channelId]?.append(message)
+                    }
+                } else {
+                    channelMessages[channelId] = [message]
+                }
+            }
+
+            print("📨 收到新消息: \(message.content.prefix(20))...")
+        } catch {
+            print("❌ 处理新消息失败: \(error)")
+        }
+    }
+
+    /// 取消订阅特定频道
+    func unsubscribeFromChannelMessages(channelId: UUID) async {
+        subscribedChannelIds.remove(channelId)
+
+        if subscribedChannelIds.isEmpty {
+            await stopRealtimeSubscription()
+        }
+    }
+
+    // MARK: - 便捷方法
+
+    /// 获取指定频道的消息
+    func getMessages(for channelId: UUID) -> [ChannelMessage] {
+        channelMessages[channelId] ?? []
+    }
+
+    /// 清空频道消息缓存
+    func clearMessages(for channelId: UUID) {
+        channelMessages.removeValue(forKey: channelId)
+    }
 }
 
 // MARK: - Update Models
